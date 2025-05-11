@@ -1,0 +1,33 @@
+#!/bin/bash
+
+source env.sh
+
+if [[ $GROUP_NAME == "test_group" ]]; then
+    echo -e "${RED} Please set your group name in 'group_name.sh'${NC}"
+    exit 1
+fi
+
+source SbatchMan/sourceFile.sh
+queue=$(${SbM_UTILS}/inQueue.sh)
+go=1
+
+if [[ ! -z $queue ]]; then
+    echo -e "-- QUEUE --\n${queue}"
+    echo -e "${PUR}Queue is not empty. Do you want to proceede anyway? (y/N)${NC}"
+    read -r response
+    if [[ "$response" != "y" && "$response" != "Y" ]]; then
+        go=0
+    fi
+fi
+
+if [[ $go -eq 1 ]]; then
+    echo -e "${GRE}Submitting results...${NC}"
+    res=$(python3 scripts/gather_results_from_sout.py)
+    ret=$?
+    if [[ $ret -eq 0 ]]; then
+        printf "%s\n" "$res"
+    else
+        echo -e "${RED}Something went wrong${NC} (return code: $ret)"
+        printf "%s\n" "$res"
+    fi
+fi

@@ -1,5 +1,6 @@
 #include <vector>
 #include <queue>
+#include <string>
 #include "utils.cuh"
 
 // Kernel: Process each node in the frontier and add unvisited neighbors to next_frontier
@@ -38,7 +39,8 @@ void gpu_bfs_baseline(
   const uint32_t *h_rowptr,
   const uint32_t *h_colidx,
   const uint32_t source,
-  int *h_distances
+  int *h_distances,
+  bool is_placeholder
 ) {
   float tot_kernel_time = 0.0;
   CUDA_TIMER_INIT(H2D_copy)
@@ -73,7 +75,7 @@ void gpu_bfs_baseline(
   // Main BFS loop
   while (current_frontier_size > 0) {
 
-    printf("[GPU BFS BASELINE] level=%u, current_frontier_size=%u\n", level, current_frontier_size);
+    printf("[GPU BFS%s] level=%u, current_frontier_size=%u\n", is_placeholder ? "" : " BASELINE", level, current_frontier_size);
 
     #ifdef ENABLE_NVTX
       // Mark start of level in NVTX
@@ -120,7 +122,7 @@ void gpu_bfs_baseline(
   CHECK_CUDA(cudaMemcpy(h_distances, d_distances, N * sizeof(int), cudaMemcpyDeviceToHost));
   CUDA_TIMER_CLOSE(D2H_copy)
 
-  printf(BRIGHT_MAGENTA "Total baseline BFS kernel time: %f ms\n" RESET, tot_kernel_time);
+  printf(BRIGHT_MAGENTA "Total%s BFS kernel time: %f ms\n" RESET, is_placeholder ? "" : " BASELINE", tot_kernel_time);
 
   // Free device memory
   cudaFree(d_row_offsets);

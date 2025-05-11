@@ -1,0 +1,1 @@
+rsync -zvrh --update --exclude .git --exclude .venv --exclude .vscode --exclude bin ./ $UNITN_USER@baldo.disi.unitn.it:~/GPU-computing-hackathon

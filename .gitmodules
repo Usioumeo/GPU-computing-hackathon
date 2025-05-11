@@ -1,0 +1,4 @@
+[submodule "SbatchMan"]
+	path = SbatchMan
+	url = git@github.com:LorenzoPichetti/SbatchMan.git
+	branch = example

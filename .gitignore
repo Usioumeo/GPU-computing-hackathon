@@ -1,2 +1,5 @@
 .vscode/
 bin/
+
+# Submodules (just in case)
+SbatchMan/
