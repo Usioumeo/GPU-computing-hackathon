@@ -1,6 +1,7 @@
 // #define ENABLE_NVTX
 #define ENABLE_CPU_BASELINE
 #define ENABLE_CORRECTNESS_CHECK
+#define DEBUG_PRINTS
 
 #define EXIT_INCORRECT_DISTANCES 10
 
@@ -32,6 +33,39 @@ void gpu_bfs(
 
   // !! This is just a placeholder !!
   gpu_bfs_baseline(N, M, h_rowptr, h_colidx, source, h_distances, true);
+
+  // !! This is an example of how to keep track of runtime !!
+  /* float tot_time = 0.0f;
+  CPU_TIMER_INIT(BFS_preprocess)
+
+  <<< preprocess >>>
+
+  CHECK_CUDA(cudaDeviceSynchronize());
+  CPU_TIMER_STOP(BFS_preprocess)
+  tot_time += CPU_TIMER_ELAPSED(BFS_preprocess);
+  CPU_TIMER_PRINT(BFS_preprocess)
+
+  CUDA_TIMER_INIT(BFS_kernel)
+
+  <<< kernel >>>
+
+  CHECK_CUDA(cudaDeviceSynchronize());
+  CUDA_TIMER_STOP(BFS_kernel)
+  tot_time += CUDA_TIMER_ELAPSED(BFS_kernel);
+  CUDA_TIMER_PRINT(BFS_kernel)
+  CUDA_TIMER_DESTROY(BFS_kernel)
+
+  CPU_TIMER_INIT(BFS_postprocess)
+
+  <<< postprocess >>>
+
+  CHECK_CUDA(cudaDeviceSynchronize());
+  CPU_TIMER_STOP(BFS_postprocess)
+  tot_time += CPU_TIMER_ELAPSED(BFS_postprocess);
+  CPU_TIMER_PRINT(BFS_postprocess)
+
+  // This output format is MANDATORY, DO NOT CHANGE IT
+  printf("\n[OUT] Total BFS time: %f ms\n" RESET, tot_time); */
 }
 
 int main(int argc, char **argv) {
@@ -56,7 +90,7 @@ int main(int argc, char **argv) {
 
   for (int source_i = 0; source_i < args.runs; source_i++) {
     uint32_t source = sources[source_i];
-    printf(GREEN "\n-- BFS iteration #%u, source=%u --\n", source_i, source);
+    printf("\n[OUT] -- BFS iteration #%u, source=%u --\n", source_i, source);
 
     // Run the BFS baseline
     gpu_bfs_baseline(graph->num_vertices, graph->num_edges, graph->row_ptr, graph->col_idx, source, distances_gpu_baseline, false);

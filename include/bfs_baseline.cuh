@@ -75,7 +75,9 @@ void gpu_bfs_baseline(
   // Main BFS loop
   while (current_frontier_size > 0) {
 
-    printf("[GPU BFS%s] level=%u, current_frontier_size=%u\n", is_placeholder ? "" : " BASELINE", level, current_frontier_size);
+    #ifdef DEBUG_PRINTS
+      printf("[GPU BFS%s] level=%u, current_frontier_size=%u\n", is_placeholder ? "" : " BASELINE", level, current_frontier_size);
+    #endif
 
     #ifdef ENABLE_NVTX
       // Mark start of level in NVTX
@@ -102,7 +104,9 @@ void gpu_bfs_baseline(
     CHECK_CUDA(cudaDeviceSynchronize());
     CUDA_TIMER_STOP(BFS_kernel)
     tot_kernel_time += CUDA_TIMER_ELAPSED(BFS_kernel);
-    CUDA_TIMER_PRINT(BFS_kernel)
+    #ifdef DEBUG_PRINTS
+      CUDA_TIMER_PRINT(BFS_kernel)
+    #endif
     CUDA_TIMER_DESTROY(BFS_kernel)
 
     #ifdef ENABLE_NVTX
@@ -122,7 +126,7 @@ void gpu_bfs_baseline(
   CHECK_CUDA(cudaMemcpy(h_distances, d_distances, N * sizeof(int), cudaMemcpyDeviceToHost));
   CUDA_TIMER_CLOSE(D2H_copy)
 
-  printf(BRIGHT_MAGENTA "Total%s BFS kernel time: %f ms\n" RESET, is_placeholder ? "" : " BASELINE", tot_kernel_time);
+  printf("\n[OUT] Total%s BFS time: %f ms\n", is_placeholder ? "" : " BASELINE", tot_kernel_time);
 
   // Free device memory
   cudaFree(d_row_offsets);

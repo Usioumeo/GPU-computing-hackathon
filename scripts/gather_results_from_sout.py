@@ -1,27 +1,70 @@
+import datetime
+import json
 import os
 import subprocess
 import pathlib
-
 import sys
+from statistics import geometric_mean, mean
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from SbatchMan.scripts.common import parse_results_csv, summarize_results
+
+from SbatchMan.scripts.common import parse_results_csv # , summarize_results
+from sout_parser import parse_stdout_file
 
 SbM_HOME = os.environ.get('SbM_HOME')
 if not SbM_HOME:
+    print('SbatchMan Environment not set. Exiting...')
+    exit(1)
+
+GROUP_NAME = os.environ.get('GROUP_NAME')
+if not GROUP_NAME:
     print('Environment not set. Exiting...')
     exit(1)
 
-METADATA_PATH = f'{SbM_HOME}/metadata/baldo'
-SOUT_PATH = f'{SbM_HOME}/sout/baldo'
-# GRAPH_CATEGORIES = ['BFS_smallD', 'BFS_largeD']
+# HOST = 'baldo'
+HOST = 'login36'
+METADATA_PATH = f'{SbM_HOME}/metadata/{HOST}'
+SOUT_PATH = f'{SbM_HOME}/sout/{HOST}'
 
 summary_file = pathlib.Path(f'{METADATA_PATH}/overallTable.csv')
 
 # if not summary_file.exists():
 # Generate results summary table
-p = subprocess.Popen(['utils/overallTable.sh'], cwd=SbM_HOME)
+p = subprocess.Popen(['utils/overallTable.sh'], cwd=SbM_HOME, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 p.wait()
 
-print(f'{summary_file=}')
+# print(f'{summary_file=}')
 results = parse_results_csv(summary_file)
-summarize_results(results)
+# summarize_results(results)
+# print(results)
+
+# Read STDOUT files
+output = {
+    'group': GROUP_NAME,
+    'timestamp': datetime.datetime.today().strftime('%Y%m%d%H%M%S'),
+    'geomean': 0,
+    'geomeans': {},
+    'runtimes': {},
+}
+runtimes = []
+for category, category_res in results.items():
+    category_runtimes = []
+    for exp in category_res:
+        sout_filename = f'{SOUT_PATH}/{category}/{category}_{exp.id}.out'
+        # print(f'{sout_filename=}')
+        with open(sout_filename, 'r') as sout_file:
+            times = parse_stdout_file(sout_file.read())
+            # print(f'{times=}')
+            if times:
+                speedups = [float(t[1]) / float(t[0]) for t in times]
+                speedups_avg = mean(speedups)
+                category_runtimes.append(speedups_avg)
+                runtimes.append(speedups_avg)
+                output['runtimes'][exp.params['f']] = speedups_avg
+
+    output['geomeans'][category] = geometric_mean(category_runtimes) if len(category_runtimes) > 0 else 0
+    # print(f'[{category}] Geomean: {geometric_mean(category_runtimes)} ms')
+
+output['geomean'] = geometric_mean(runtimes) if len(runtimes) > 0 else 0
+# print(f'[OVERALL] Geomean: {geometric_mean(runtimes)} ms')
+
+print(json.dumps(output))

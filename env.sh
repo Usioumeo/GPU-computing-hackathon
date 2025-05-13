@@ -9,8 +9,8 @@ NC='\033[0m' # No Color
 
 BIN=bin/bfs
 ITERATIONS=10
-MTX_PATH="./test_data"
+export MTX_PATH="./test_data"
 GRAPHS_SMALL_D=(ca-GrQc test)
 GRAPHS_LARGE_D=(loc-Gowalla)
 
-SHARED_DIR="~/shared_test"
+export SHARED_DIR="../shared_test"

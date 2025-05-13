@@ -1,5 +1,7 @@
 .vscode/
+.venv/
 bin/
+scripts/__pycache__/
 
 # Submodules (just in case)
 SbatchMan/

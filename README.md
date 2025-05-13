@@ -13,7 +13,7 @@ This is the base repository for the hackathon. It contains:
 
 ## Setup and Build
 
-First, on you local machine run:
+First, on you **local machine** run:
 
 ```bash
 git submodule init

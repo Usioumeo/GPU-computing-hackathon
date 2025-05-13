@@ -26,8 +26,13 @@ if [[ $go -eq 1 ]]; then
     ret=$?
     if [[ $ret -eq 0 ]]; then
         printf "%s\n" "$res"
+        shared_file="$SHARED_DIR/gpu-computing-hackathon-results.json"
+        # if [[ ! -f $shared_file ]]; then
+        touch $shared_file
+        # fi
+        printf "%s\n" "$res" >> $shared_file
     else
         echo -e "${RED}Something went wrong${NC} (return code: $ret)"
-        printf "%s\n" "$res"
+        # printf "%s\n" "$res"
     fi
 fi
