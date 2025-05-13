@@ -2,6 +2,7 @@ from math import ceil
 import os
 import json
 from operator import itemgetter
+import sys
 import matplotlib.axes
 import matplotlib.pyplot as plt
 import matplotlib
@@ -24,10 +25,10 @@ CATEGORIES_LABELS_DICT = {
     'BFS_smallD': 'Small-diameter',
 }
 
-SHARED_DIR = os.environ.get('SHARED_DIR')
-if not SHARED_DIR:
-    print('Environment not set. Exiting...')
-    exit(1)
+# SHARED_DIR = os.environ.get('SHARED_DIR')
+# if not SHARED_DIR:
+#     print('Environment not set. Exiting...')
+#     exit(1)
 
 def plot_ranking(ax: matplotlib.axes.Axes, x, y, title, y_label=''):
     colors = ['gold', 'silver', 'goldenrod'] + ['cornflowerblue'] * (len(x) - 3)
@@ -56,7 +57,12 @@ def plot_ranking(ax: matplotlib.axes.Axes, x, y, title, y_label=''):
     #         fontsize=14
     #     )
 
-with open(f'{SHARED_DIR}/gpu-computing-hackathon-results.json', 'r') as sout_file:
+# f'{SHARED_DIR}/gpu-computing-hackathon-results.json'
+if len(sys.argv) < 2:
+    print(f'Usage: {sys.argv[0]} <results-json-file>')
+    exit(1)
+
+with open(sys.argv[1], 'r') as sout_file:
     input = sout_file.read()
     data = [json.loads(line) for line in input.strip().split('\n')]
 
@@ -90,14 +96,13 @@ with open(f'{SHARED_DIR}/gpu-computing-hackathon-results.json', 'r') as sout_fil
     for dataset in ranking_by_graph:
         ranking_by_graph[dataset] = sorted(ranking_by_graph[dataset], key=itemgetter('speedup'), reverse=True)
 
-    print(ranking_global)
-    print()
-    print(ranking_by_type)
-    print()
-    print(ranking_by_graph)
+    # print(ranking_global)
+    # print()
+    # print(ranking_by_type)
+    # print()
+    # print(ranking_by_graph)
 
     # Plotting
-    print(1 + ceil(len(ranking_by_graph.keys())/3))
     fig, axes = plt.subplots(1 + ceil(len(ranking_by_graph.keys())/3), 3, figsize=(17, 10))
     axes = axes.flatten()
 
@@ -133,6 +138,6 @@ with open(f'{SHARED_DIR}/gpu-computing-hackathon-results.json', 'r') as sout_fil
         ax_i += 1
 
     plt.tight_layout()
-    output_path = os.path.join(SHARED_DIR, 'ranking_plot.png')
+    output_path = 'ranking_plot.png'
     plt.savefig(output_path)
     print(f'Ranking plot saved to {output_path}')
