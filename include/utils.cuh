@@ -1,8 +1,8 @@
 #pragma once
 
 #include "colors.h"
-#include "mt19937-64.hpp"
 #include "graph.h"
+#include "mt19937-64.hpp"
 #include <cstdint>
 #include <stdio.h>
 #include <chrono>

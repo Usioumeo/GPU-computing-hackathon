@@ -64,7 +64,8 @@ if len(sys.argv) < 2:
 
 with open(sys.argv[1], 'r') as sout_file:
     input = sout_file.read()
-    data = [json.loads(line) for line in input.strip().split('\n')]
+    # Old for jsonl -- data = [json.loads(line) for line in input.strip().split('\n')]
+    data = json.loads(input)
 
     # Filter data to keep only the submission with the highest geomean for each group
     grouped_data = {}
@@ -89,7 +90,7 @@ with open(sys.argv[1], 'r') as sout_file:
     ## by Graph
     ranking_by_graph = {}
     for entry in data:
-        for dataset, value in entry['runtimes'].items():
+        for dataset, value in entry['speedups'].items():
             if dataset not in ranking_by_graph:
                 ranking_by_graph[dataset] = []
             ranking_by_graph[dataset].append({'group': entry['group'], 'speedup': value})

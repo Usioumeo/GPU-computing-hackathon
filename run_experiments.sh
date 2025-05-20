@@ -6,12 +6,14 @@ source env.sh
 
 RUN_SMALL=true
 RUN_LARGE=true
+RUN_G500=true
 
 # Parse CLI arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --no-small-diam) RUN_SMALL=false ;;
         --no-large-diam) RUN_LARGE=false ;;
+        --no-graph500) RUN_G500=false ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -27,8 +29,9 @@ if [[ -z $SbM_HOME ]]; then
         cd ..
         source SbatchMan/sourceFile.sh
         # 1 node, 1 CPU, 1 GPU, no MPI
-        SbatchMan/newExperiment.sh -p edu-short -t 00:00:10 -e BFS_smallD -n 1 -c 1 -g 1 -d 1 -b $BIN
-        SbatchMan/newExperiment.sh -p edu-short -t 00:00:10 -e BFS_largeD -n 1 -c 1 -g 1 -d 1 -b $BIN
+        SbatchMan/newExperiment.sh -p "edu-short" -t 00:00:10 -e BFS_smallD -n 1 -c 1 -g 1 -d 1 -b $BIN
+        SbatchMan/newExperiment.sh -p "edu-short" -t 00:00:10 -e BFS_largeD -n 1 -c 1 -g 1 -d 1 -b $BIN
+        SbatchMan/newExperiment.sh -p "edu-short" -t 00:00:10 -e BFS_g500 -n 1 -c 1 -g 1 -d 1 -b $BIN
 
         # FIXME delete
         # SbatchMan/newExperiment.sh -s gpu -t 00:00:10 -e BFS_smallD -a m4341_g -q debug -n 1 -c 1 -g 1 -d 1 -b $BIN 
@@ -44,21 +47,14 @@ source SbatchMan/submit.sh
 my_hostname=$(${SbM_UTILS}/hostname.sh)
 
 check_and_move_old_exp () {
-    if [[ -d "${SbM_HOME}/sout/$my_hostname/$1" ]]; then
+    if [[ -d "${SbM_HOME}/sout/$my_hostname/$1" ]] && [[ $(find "${SbM_HOME}/sout/$my_hostname/$1" -type f | wc -l) -gt 0 ]]; then
         echo -e "${PUR}Old experiment data found for $1. Do you want to archive it? (Y/n)${NC}"
         read -r response
         if [[ "$response" == "n" || "$response" == "N" ]]; then
             return 1
         else
-            hidden_dir_sout="${SbM_HOME}/sout/$my_hostname/.old_sout"
-            hidden_dir_meta="${SbM_HOME}/metadata/$my_hostname/.old_metadata"
-            mkdir -p "$hidden_dir_sout" "$hidden_dir_meta"
-            timestamp=$(date +%Y%m%d_%H%M%S)
-            mv "${SbM_HOME}/sout/$my_hostname/$1" "$hidden_dir_sout/${1}_$timestamp"
-            echo -e "${GRE}Moved old 'sout' data to $hidden_dir_sout/${1}_$timestamp${NC}"
-            mv "${SbM_HOME}/metadata/$my_hostname/$1" "$hidden_dir_meta/${1}_$timestamp"
-            echo -e "${GRE}Moved old 'meta' data to $hidden_dir_meta/${1}_$timestamp${NC}"
-            return 0
+           SbatchMan/utils/archiveExperiments.sh $1
+           return 0
         fi
     fi
 }
@@ -70,9 +66,9 @@ if $RUN_SMALL; then
         echo -e "${GRE}%% Running tests on small-diameter graphs %%${NC}"
         for gi in ${!GRAPHS_SMALL_D[@]}; do
             graph=${GRAPHS_SMALL_D[$gi]}
-            echo "----- Testing '$graph' graph -----"
-            SbM_submit_function --verbose --expname $expname --binary $BIN -f "$MTX_PATH/$graph/$graph.mtx" -n $ITERATIONS
-            echo "jobid: ${job_id}"
+            echo "----- Testing '$(basename "${graph%.*}")' graph -----"
+            SbM_submit_function --verbose --expname $expname --binary $BIN -f "$MTX_PATH/$graph" -n $ITERATIONS
+            echo "JOB ID: ${job_id}"
         done
     fi
 fi
@@ -84,9 +80,23 @@ if $RUN_LARGE; then
         echo -e "${GRE}%% Running tests on large-diameter graphs %%${NC}"
         for gi in ${!GRAPHS_LARGE_D[@]}; do
             graph=${GRAPHS_LARGE_D[$gi]}
-            echo "----- Testing '$graph' graph -----"
-            SbM_submit_function --verbose --expname $expname --binary $BIN -f "$MTX_PATH/$graph/$graph.mtx" -n $ITERATIONS
-            echo "jobid: ${job_id}"
+            echo "----- Testing '$(basename "${graph%.*}")' graph -----"
+            SbM_submit_function --verbose --expname $expname --binary $BIN -f "$MTX_PATH/$graph" -n $ITERATIONS
+            echo "JOB ID: ${job_id}"
+        done
+    fi
+fi
+
+if $RUN_G500; then
+    expname=BFS_g500
+    check_and_move_old_exp $expname
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GRE}%% Running tests on Graph500 graphs %%${NC}"
+        for gi in ${!GRAPHS_G500[@]}; do
+            graph=${GRAPHS_G500[$gi]}
+            echo "----- Testing '$(basename "${graph%.*}")' graph -----"
+            SbM_submit_function --verbose --expname $expname --binary $BIN -f "$MTX_PATH/$graph" -n $ITERATIONS
+            echo "JOB ID: ${job_id}"
         done
     fi
 fi

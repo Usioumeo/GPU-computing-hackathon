@@ -13,7 +13,18 @@ go=1
 
 if [[ ! -z $queue ]]; then
     echo -e "-- QUEUE --\n${queue}"
-    echo -e "${PUR}Queue is not empty. Do you want to proceede anyway? (y/N)${NC}"
+    echo -e "${PUR}Queue is not empty. Do you want to proceed anyway? (y/N)${NC}"
+    read -r response
+    if [[ "$response" != "y" && "$response" != "Y" ]]; then
+        go=0
+    fi
+fi
+
+running=$(${SbM_UTILS}/whoRuns.sh)
+
+if [[ ! -z $running ]]; then
+    echo -e "-- RUNNING --\n${running}"
+    echo -e "${PUR}Jobs are still running. Do you want to proceed anyway? (y/N)${NC}"
     read -r response
     if [[ "$response" != "y" && "$response" != "Y" ]]; then
         go=0
@@ -26,11 +37,13 @@ if [[ $go -eq 1 ]]; then
     ret=$?
     if [[ $ret -eq 0 ]]; then
         printf "%s\n" "$res"
-        shared_file="$SHARED_DIR/gpu-computing-hackathon-results.json"
-        # if [[ ! -f $shared_file ]]; then
-        touch $shared_file
-        # fi
-        printf "%s\n" "$res" >> $shared_file
+        res=$(echo "$res" | tr -d '\n')
+        curl -X POST http://thomhub.ddns.net:7700/append -H "Content-Type: application/json" -d "$res"
+        # shared_file="$SHARED_DIR/gpu-computing-hackathon-results.json"
+        # # if [[ ! -f $shared_file ]]; then
+        # touch $shared_file
+        # # fi
+        # printf "%s\n" "$res" >> $shared_file
     else
         echo -e "${RED}Something went wrong${NC} (return code: $ret)"
         # printf "%s\n" "$res"

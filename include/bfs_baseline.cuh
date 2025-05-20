@@ -42,7 +42,7 @@ void gpu_bfs_baseline(
   int *h_distances,
   bool is_placeholder
 ) {
-  float tot_kernel_time = 0.0;
+  float tot_time = 0.0;
   CUDA_TIMER_INIT(H2D_copy)
 
   // Allocate and copy graph to device
@@ -67,18 +67,23 @@ void gpu_bfs_baseline(
   CHECK_CUDA(cudaMemset(d_distances, -1, N * sizeof(int)));
   CHECK_CUDA(cudaMemset(d_distances + source, 0, sizeof(int))); // set to 0
 
-  CUDA_TIMER_CLOSE(H2D_copy)
+  CUDA_TIMER_STOP(H2D_copy)
+  #ifdef DEBUG_PRINTS
+    CUDA_TIMER_PRINT(H2D_copy)
+  #endif
+  tot_time += CUDA_TIMER_ELAPSED(H2D_copy);
+  CUDA_TIMER_DESTROY(H2D_copy)
 
   uint32_t current_frontier_size = 1;
   uint32_t level = 0;
 
   // Main BFS loop
+  CPU_TIMER_INIT(BASELINE_BFS)
   while (current_frontier_size > 0) {
 
     #ifdef DEBUG_PRINTS
       printf("[GPU BFS%s] level=%u, current_frontier_size=%u\n", is_placeholder ? "" : " BASELINE", level, current_frontier_size);
     #endif
-
     #ifdef ENABLE_NVTX
       // Mark start of level in NVTX
       nvtxRangePushA(("BFS Level " + std::to_string(level)).c_str());
@@ -90,7 +95,7 @@ void gpu_bfs_baseline(
     uint32_t block_size = 256;
     uint32_t num_blocks = CEILING(current_frontier_size, block_size);
 
-    CUDA_TIMER_INIT(BFS_kernel)
+    // CUDA_TIMER_INIT(BFS_kernel)
     bfs_kernel_baseline<<<num_blocks, block_size>>>(
       d_row_offsets,
       d_col_indices,
@@ -102,17 +107,11 @@ void gpu_bfs_baseline(
       d_next_frontier_size
     );
     CHECK_CUDA(cudaDeviceSynchronize());
-    CUDA_TIMER_STOP(BFS_kernel)
-    tot_kernel_time += CUDA_TIMER_ELAPSED(BFS_kernel);
-    #ifdef DEBUG_PRINTS
-      CUDA_TIMER_PRINT(BFS_kernel)
-    #endif
-    CUDA_TIMER_DESTROY(BFS_kernel)
-
-    #ifdef ENABLE_NVTX
-      // End NVTX range for level
-      nvtxRangePop();
-    #endif
+    // CUDA_TIMER_STOP(BFS_kernel)
+    // #ifdef DEBUG_PRINTS
+    //   CUDA_TIMER_PRINT(BFS_kernel)
+    // #endif
+    // CUDA_TIMER_DESTROY(BFS_kernel)
 
     // Swap frontier pointers
     std::swap(d_frontier, d_next_frontier);
@@ -120,13 +119,28 @@ void gpu_bfs_baseline(
     // Copy size of next frontier to host
     CHECK_CUDA(cudaMemcpy(&current_frontier_size, d_next_frontier_size, sizeof(uint32_t), cudaMemcpyDeviceToHost));
     level++;
+
+    #ifdef ENABLE_NVTX
+      // End NVTX range for level
+      nvtxRangePop();
+    #endif
   }
+  CPU_TIMER_STOP(BASELINE_BFS)
+  #ifdef DEBUG_PRINTS
+    CPU_TIMER_PRINT(BASELINE_BFS)
+  #endif
+  tot_time += CPU_TIMER_ELAPSED(BASELINE_BFS);
 
   CUDA_TIMER_INIT(D2H_copy)
   CHECK_CUDA(cudaMemcpy(h_distances, d_distances, N * sizeof(int), cudaMemcpyDeviceToHost));
-  CUDA_TIMER_CLOSE(D2H_copy)
+  CUDA_TIMER_STOP(D2H_copy)
+  #ifdef DEBUG_PRINTS
+    CUDA_TIMER_PRINT(D2H_copy)
+  #endif
+  tot_time += CUDA_TIMER_ELAPSED(D2H_copy);
+  CUDA_TIMER_DESTROY(D2H_copy)
 
-  printf("\n[OUT] Total%s BFS time: %f ms\n", is_placeholder ? "" : " BASELINE", tot_kernel_time);
+  printf("\n[OUT] Total%s BFS time: %f ms\n", is_placeholder ? "" : " BASELINE", tot_time);
 
   // Free device memory
   cudaFree(d_row_offsets);

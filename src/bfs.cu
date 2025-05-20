@@ -12,9 +12,11 @@
 #include <nvtx3/nvToolsExt.h>
 #endif
 
+#include "../distributed_mmio/include/mmio.h"
+#include "../distributed_mmio/include/mmio_utils.h"
+
 #include "../include/colors.h"
 #include "../include/utils.cuh"
-#include "../include/graph.h"
 #include "../include/cli.hpp"
 #include "../include/mt19937-64.hpp"
 #include "../include/bfs_baseline.cuh"
@@ -29,12 +31,13 @@ void gpu_bfs(
 ) {
   /***********************
    * IMPLEMENT HERE YOUR CUDA BFS
+   * Feel free to structure you code (i.e. create other files, macros etc.)
    * *********************/
 
   // !! This is just a placeholder !!
   gpu_bfs_baseline(N, M, h_rowptr, h_colidx, source, h_distances, true);
 
-  // !! This is an example of how to keep track of runtime !!
+  // !! This is an example of how to keep track of runtime. Make sure to include everything. !!
   /* float tot_time = 0.0f;
   CPU_TIMER_INIT(BFS_preprocess)
 
@@ -45,15 +48,14 @@ void gpu_bfs(
   tot_time += CPU_TIMER_ELAPSED(BFS_preprocess);
   CPU_TIMER_PRINT(BFS_preprocess)
 
-  CUDA_TIMER_INIT(BFS_kernel)
+  CPU_TIMER_INIT(BFS)
 
   <<< kernel >>>
 
   CHECK_CUDA(cudaDeviceSynchronize());
-  CUDA_TIMER_STOP(BFS_kernel)
-  tot_time += CUDA_TIMER_ELAPSED(BFS_kernel);
-  CUDA_TIMER_PRINT(BFS_kernel)
-  CUDA_TIMER_DESTROY(BFS_kernel)
+  CPU_TIMER_STOP(BFS)
+  tot_time += CPU_TIMER_ELAPSED(BFS);
+  CPU_TIMER_PRINT(BFS)
 
   CPU_TIMER_INIT(BFS_postprocess)
 
@@ -75,37 +77,40 @@ int main(int argc, char **argv) {
   if (parse_args(argc, argv, &args) != 0) {
     return -1;
   }
-
-  GraphCSR *graph = import_mtx(args.filename);
-  if (graph == NULL) {
+  CSR_local<uint32_t, float> *csr = Distr_MMIO_CSR_local_read<uint32_t, float>(args.filename);
+  if (csr == NULL) {
     printf("Failed to import graph from file [%s]\n", args.filename);
     return -1;
   }
-
+  GraphCSR graph;
+  graph.row_ptr = csr->row_ptr;
+  graph.col_idx = csr->col_idx;
+  graph.num_vertices = csr->nrows;
+  graph.num_edges = csr->nnz;
   // print_graph_csr(graph);
 
-  uint32_t *sources = generate_sources(graph, args.runs, graph->num_vertices, args.source);
-  int *distances_gpu_baseline = (int *)malloc(graph->num_vertices * sizeof(int));
-  int *distances = (int *)malloc(graph->num_vertices * sizeof(int));
+  uint32_t *sources = generate_sources(&graph, args.runs, graph.num_vertices, args.source);
+  int *distances_gpu_baseline = (int *)malloc(graph.num_vertices * sizeof(int));
+  int *distances = (int *)malloc(graph.num_vertices * sizeof(int));
 
   for (int source_i = 0; source_i < args.runs; source_i++) {
     uint32_t source = sources[source_i];
     printf("\n[OUT] -- BFS iteration #%u, source=%u --\n", source_i, source);
 
     // Run the BFS baseline
-    gpu_bfs_baseline(graph->num_vertices, graph->num_edges, graph->row_ptr, graph->col_idx, source, distances_gpu_baseline, false);
+    gpu_bfs_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr, graph.col_idx, source, distances_gpu_baseline, false);
 
     #ifdef ENABLE_NVTX
 		  nvtxRangePushA("Total BFS");
     #endif
-    gpu_bfs(graph->num_vertices, graph->num_edges, graph->row_ptr, graph->col_idx, source, distances);
+    gpu_bfs(graph.num_vertices, graph.num_edges, graph.row_ptr, graph.col_idx, source, distances);
     #ifdef ENABLE_NVTX
 		  nvtxRangePop();
     #endif
 
     bool match = true;
     #ifdef ENABLE_CORRECTNESS_CHECK
-      for (uint32_t i = 0; i < graph->num_vertices; ++i) {
+      for (uint32_t i = 0; i < graph.num_vertices; ++i) {
         if (distances_gpu_baseline[i] != distances[i]) {
           printf("Mismatch at node %u: Baseline distance = %d, Your distance = %d\n", i, distances_gpu_baseline[i], distances[i]);
           match = false;
@@ -121,14 +126,14 @@ int main(int argc, char **argv) {
     #endif
 
     #ifdef ENABLE_CPU_BASELINE
-      int cpu_distances[graph->num_vertices];
+      int cpu_distances[graph.num_vertices];
 
       CPU_TIMER_INIT(CPU_BFS)
-      cpu_bfs_baseline(graph->num_vertices, graph->row_ptr, graph->col_idx, source, cpu_distances);
+      cpu_bfs_baseline(graph.num_vertices, graph.row_ptr, graph.col_idx, source, cpu_distances);
       CPU_TIMER_CLOSE(CPU_BFS)
 
       match = true;
-      for (uint32_t i = 0; i < graph->num_vertices; ++i) {
+      for (uint32_t i = 0; i < graph.num_vertices; ++i) {
         if (distances_gpu_baseline[i] != cpu_distances[i]) {
           printf("Mismatch at node %u: GPU distance = %d, CPU distance = %d\n", i, distances_gpu_baseline[i], cpu_distances[i]);
           match = false;
@@ -144,10 +149,8 @@ int main(int argc, char **argv) {
     #endif
   }
 
+  Distr_MMIO_CSR_local_destroy(&csr);
   free(sources);
-  free(graph->row_ptr);
-  free(graph->col_idx);
-  free(graph);
   free(distances_gpu_baseline);
   free(distances);
 

@@ -2,3 +2,9 @@
 	path = SbatchMan
 	url = git@github.com:LorenzoPichetti/SbatchMan.git
 	branch = example
+[submodule "distributed_mmio"]
+	path = distributed_mmio
+	url = git@github.com:HicrestLaboratory/distributed_mmio.git
+[submodule "MtxMan"]
+	path = MtxMan
+	url = git@github.com:ThomasPasquali/MtxMan.git

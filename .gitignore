@@ -2,6 +2,9 @@
 .venv/
 bin/
 scripts/__pycache__/
+scripts/*.png
+scripts/*.json
+scripts/*.jsonl
 
-# Submodules (just in case)
-SbatchMan/
+*.nsys-rep
+*.sqlite

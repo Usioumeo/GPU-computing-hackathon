@@ -1,4 +1,5 @@
 import re
+from typing import Union
 
 LINE_PREFIXES_WHITELIST = ['[OUT]']
 
@@ -12,7 +13,7 @@ PATTERN = [
 PATTERN = r'\n'.join(PATTERN)
 # print(f'Pattern: {PATTERN}')
 
-def parse_stdout_file(content: str) -> None | list[tuple[float, float]]:
+def parse_stdout_file(content: str) -> Union[None,list[tuple[float, float]]]:
     if 'Correctness OK' not in content:
         return None
     

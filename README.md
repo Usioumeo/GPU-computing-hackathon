@@ -4,11 +4,11 @@ This is the base repository for the hackathon. It contains:
 * A baseline CUDA implementation of the Breadth Search First (BFS) algorithm, which includes:
     * Reading a MatrixMarket (.mtx) file
     * Creating the CSR representation of the graph
-    * Executing the agorithm
+    * Executing the algorithm
 * This baseline will be used for correctness checks
 * An automated testing framework based on pre-defined datasets
 * The code also includes:
-    * Timers to record performance
+    * Timers to track performance
     * NVTX examples
 
 ## Setup and Build
@@ -27,33 +27,97 @@ export UNITN_USER=<name.surname>
 ./baldo_sync.sh # This requires 'rsync'
 ```
 
-On `baldo', compiling the project is as easy as it can get:
+On `baldo`, compiling the project is as easy as it can get:
 
 ```bash
 ml CUDA/12.5.0
 make all # This will make targets "bin/bfs" "bin/bfs_profiling"
 ```
 
-The `bfs_profiling` target will enable NVTX. 
+The `bfs_profiling` target will enable NVTX.
+
+### Downloading Datasets (if necessary)
+
+First, on you system, from the repo root, run:
+
+```bash
+cd MtxMan
+git submodule init
+git submodule update
+cd ..
+./baldo_sync.sh
+```
+
+Then on `baldo`, from the repo root, run:
+```bash
+cp config.yaml MtxMan/config.yaml
+python3 -m venv .venv
+source .venv/bin/activate
+cd MtxMan
+pip install -r requirements.txt
+python3 scripts/sync_datasets.py --binary-mtx
+```
 
 ## Code
 
 You can start working directly on `src/bfs.cu`
 
-## Running Experiments
+## Environment
 
 > **_IMPORTANT:_** First, set the name of you group in the `env.sh` file.
+
+<!-- On each terminal you open in the cluster, make sure to first run:
+
+```bash
+source env.sh
+``` -->
+
+## Running Experiments
 
 Please use the following to run you experiments:
 
 ```bash
 # Run this from the repo root folder 
-./run_experiments.sh # [--no-small-diam] [--no-large-diam]
+./run_experiments.sh # [--no-small-diam] [--no-large-diam] [--no-graph500]
 ```
 
 *The optional flags disable test for the given category of graphs*
 
 Running the script will take care of setting the correct configuration for SLURM and submits one job per graph.
 
+## Submitting Results
+
+To submit the results:
+
+```bash
+# Run this from the repo root folder 
+./submit_results.sh
+```
+
+*If experiments are still running, the script will notify it.*
+
 ## Datasets
 
+The datasets are divided into three categories:
+* Small-diameter
+* Large-diameter
+* Graph500 Kronecker 
+
+Here is a summary of theirs characteristics:
+
+| **Name**           | **N** | **M** | **Category**       |
+|--------------------|-------|-------|--------------------|
+| wikipedia-20070206 | 3M    |  45M  | Small-diameter     |
+| soc-LiveJournal1   | 5M    |  69M  | Small-diameter     |
+| hollywood-2009     | 1M    | 114M  | Small-diameter     |
+| GAP-twitter        | 61M   | 1.5B  | Small-diameter     |
+| GAP-web            | 50M   | 1.9B  | Small-diameter     |
+| roadNet-CA         | 1M    |   5M  | Large-diameter     |
+| GAP-road           | 23M   |  58M  | Large-diameter     |
+| rgg_n_2_22_s0      | 4M    |  60M  | Large-diameter     |
+| europe_osm         | 50M   | 108M  | Large-diameter     |
+| rgg_n_2_24_s0      | 18M   | 265M  | Large-diameter     |
+| graph500_20_8      | 1M    | 8M    | Graph500 Kronecker |
+| graph500_21_8      | 2M    | 17M   | Graph500 Kronecker |
+| graph500_20_32     | 1M    | 33M   | Graph500 Kronecker |
+| graph500_21_16     | 2M    | 33M   | Graph500 Kronecker |

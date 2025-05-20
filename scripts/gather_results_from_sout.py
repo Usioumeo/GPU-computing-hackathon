@@ -20,8 +20,7 @@ if not GROUP_NAME:
     print('Environment not set. Exiting...')
     exit(1)
 
-# HOST = 'baldo'
-HOST = 'login36'
+HOST = os.environ.get('HOST', 'baldo')
 METADATA_PATH = f'{SbM_HOME}/metadata/{HOST}'
 SOUT_PATH = f'{SbM_HOME}/sout/{HOST}'
 
@@ -35,7 +34,6 @@ p.wait()
 # print(f'{summary_file=}')
 results = parse_results_csv(summary_file)
 # summarize_results(results)
-# print(results)
 
 # Read STDOUT files
 output = {
@@ -43,7 +41,7 @@ output = {
     'timestamp': datetime.datetime.today().strftime('%Y%m%d%H%M%S'),
     'geomean': 0,
     'geomeans': {},
-    'runtimes': {},
+    'speedups': {},
 }
 runtimes = []
 for category, category_res in results.items():
@@ -59,7 +57,7 @@ for category, category_res in results.items():
                 speedups_avg = mean(speedups)
                 category_runtimes.append(speedups_avg)
                 runtimes.append(speedups_avg)
-                output['runtimes'][exp.params['f']] = speedups_avg
+                output['speedups'][exp.params['-f']] = speedups_avg
 
     output['geomeans'][category] = geometric_mean(category_runtimes) if len(category_runtimes) > 0 else 0
     # print(f'[{category}] Geomean: {geometric_mean(category_runtimes)} ms')
@@ -67,4 +65,4 @@ for category, category_res in results.items():
 output['geomean'] = geometric_mean(runtimes) if len(runtimes) > 0 else 0
 # print(f'[OVERALL] Geomean: {geometric_mean(runtimes)} ms')
 
-print(json.dumps(output))
+print(json.dumps(output, indent=2))
