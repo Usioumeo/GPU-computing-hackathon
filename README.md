@@ -121,3 +121,12 @@ Here is a summary of theirs characteristics:
 | graph500_21_8      | 2M    | 17M   | Graph500 Kronecker |
 | graph500_20_32     | 1M    | 33M   | Graph500 Kronecker |
 | graph500_21_16     | 2M    | 33M   | Graph500 Kronecker |
+
+
+## Ranking
+
+The `submit_results` will automatically upload you results to a shared ranking list.
+
+Some notes about how the ranking works:
+
+* Only submissions with correct results for all graphs will be considered

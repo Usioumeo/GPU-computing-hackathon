@@ -1,7 +1,7 @@
 // #define ENABLE_NVTX
-#define ENABLE_CPU_BASELINE
+// #define ENABLE_CPU_BASELINE
+// #define DEBUG_PRINTS
 #define ENABLE_CORRECTNESS_CHECK
-#define DEBUG_PRINTS
 
 #define EXIT_INCORRECT_DISTANCES 10
 
@@ -77,11 +77,16 @@ int main(int argc, char **argv) {
   if (parse_args(argc, argv, &args) != 0) {
     return -1;
   }
+  CPU_TIMER_INIT(MTX_read)
   CSR_local<uint32_t, float> *csr = Distr_MMIO_CSR_local_read<uint32_t, float>(args.filename);
   if (csr == NULL) {
     printf("Failed to import graph from file [%s]\n", args.filename);
     return -1;
   }
+  CPU_TIMER_CLOSE(MTX_read)
+
+  printf("Graph size: %.3fM vertices, %.3fM edges\n", csr->nrows / 1e6, csr->nnz / 1e6);
+
   GraphCSR graph;
   graph.row_ptr = csr->row_ptr;
   graph.col_idx = csr->col_idx;

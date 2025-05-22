@@ -16,7 +16,7 @@ if [[ ! -z $queue ]]; then
     echo -e "${PUR}Queue is not empty. Do you want to proceed anyway? (y/N)${NC}"
     read -r response
     if [[ "$response" != "y" && "$response" != "Y" ]]; then
-        go=0
+        exit
     fi
 fi
 
@@ -27,25 +27,24 @@ if [[ ! -z $running ]]; then
     echo -e "${PUR}Jobs are still running. Do you want to proceed anyway? (y/N)${NC}"
     read -r response
     if [[ "$response" != "y" && "$response" != "Y" ]]; then
-        go=0
+        exit
     fi
 fi
 
-if [[ $go -eq 1 ]]; then
-    echo -e "${GRE}Submitting results...${NC}"
-    res=$(python3 scripts/gather_results_from_sout.py)
-    ret=$?
-    if [[ $ret -eq 0 ]]; then
-        printf "%s\n" "$res"
-        res=$(echo "$res" | tr -d '\n')
-        curl -X POST http://thomhub.ddns.net:7700/append -H "Content-Type: application/json" -d "$res"
-        # shared_file="$SHARED_DIR/gpu-computing-hackathon-results.json"
-        # # if [[ ! -f $shared_file ]]; then
-        # touch $shared_file
-        # # fi
-        # printf "%s\n" "$res" >> $shared_file
-    else
-        echo -e "${RED}Something went wrong${NC} (return code: $ret)"
-        # printf "%s\n" "$res"
-    fi
+echo -e "${GRE}Submitting results...${NC}"
+python3 scripts/gather_results_from_sout.py
+ret=$?
+if [[ $ret -eq 0 ]]; then
+    res=$(python3 scripts/gather_results_from_sout.py --submission)
+    # echo "---------------------------------------"
+    echo "$res"
+    curl -X POST http://thomhub.ddns.net:7700/append -H "Content-Type: application/json" -d "$res"
+    # shared_file="$SHARED_DIR/gpu-computing-hackathon-results.json"
+    # # if [[ ! -f $shared_file ]]; then
+    # touch $shared_file
+    # # fi
+    # printf "%s\n" "$res" >> $shared_file
+else
+    echo -e "${RED}Something went wrong${NC} (return code: $ret)"
+    # printf "%s\n" "$res"
 fi

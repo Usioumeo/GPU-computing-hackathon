@@ -20,9 +20,28 @@ plt.rc('legend', fontsize=FONT_LEGEND)    # legend fontsize
 plt.rc('figure', titlesize=FONT_TITLE)  # fontsize of the figure title
 # matplotlib.rcParams['font.family'] = 'Noto Color Emoji'
 
+graphs = {
+    "wikipedia-20070206": {"N": 3_000_000, "M": 45_000_000, "Category": "Small-diameter"},
+    "soc-LiveJournal1": {"N": 5_000_000, "M": 69_000_000, "Category": "Small-diameter"},
+    "hollywood-2009": {"N": 1_000_000, "M": 114_000_000, "Category": "Small-diameter"},
+    "GAP-twitter": {"N": 61_000_000, "M": 1_500_000_000, "Category": "Small-diameter"},
+    "GAP-web": {"N": 50_000_000, "M": 1_900_000_000, "Category": "Small-diameter"},
+    "roadNet-CA": {"N": 1_000_000, "M": 5_000_000, "Category": "Large-diameter"},
+    "GAP-road": {"N": 23_000_000, "M": 58_000_000, "Category": "Large-diameter"},
+    "rgg_n_2_22_s0": {"N": 4_000_000, "M": 60_000_000, "Category": "Large-diameter"},
+    "europe_osm": {"N": 50_000_000, "M": 108_000_000, "Category": "Large-diameter"},
+    "rgg_n_2_24_s0": {"N": 18_000_000, "M": 265_000_000, "Category": "Large-diameter"},
+    "graph500_20_8": {"N": 1_000_000, "M": 8_000_000, "Category": "Graph500"},
+    "graph500_21_8": {"N": 2_000_000, "M": 17_000_000, "Category": "Graph500"},
+    "graph500_20_32": {"N": 1_000_000, "M": 33_000_000, "Category": "Graph500"},
+    "graph500_21_16": {"N": 2_000_000, "M": 33_000_000, "Category": "Graph500"},
+}
+
+
 CATEGORIES_LABELS_DICT = {
     'BFS_largeD': 'Large-diameter',
     'BFS_smallD': 'Small-diameter',
+    'BFS_g500': 'Graph500',
 }
 
 # SHARED_DIR = os.environ.get('SHARED_DIR')
@@ -66,6 +85,13 @@ with open(sys.argv[1], 'r') as sout_file:
     input = sout_file.read()
     # Old for jsonl -- data = [json.loads(line) for line in input.strip().split('\n')]
     data = json.loads(input)
+    
+    # Filter to only submissions that have results for ALL datasets
+    all_datasets = set(graphs.keys())
+    data = [
+        entry for entry in data
+        if 'speedups' in entry and set(entry['speedups'].keys()) == all_datasets
+    ]
 
     # Filter data to keep only the submission with the highest geomean for each group
     grouped_data = {}
