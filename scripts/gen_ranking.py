@@ -24,13 +24,15 @@ graphs = {
     "wikipedia-20070206": {"N": 3_000_000, "M": 45_000_000, "Category": "Small-diameter"},
     "soc-LiveJournal1": {"N": 5_000_000, "M": 69_000_000, "Category": "Small-diameter"},
     "hollywood-2009": {"N": 1_000_000, "M": 114_000_000, "Category": "Small-diameter"},
-    "GAP-twitter": {"N": 61_000_000, "M": 1_500_000_000, "Category": "Small-diameter"},
-    "GAP-web": {"N": 50_000_000, "M": 1_900_000_000, "Category": "Small-diameter"},
-    "roadNet-CA": {"N": 1_000_000, "M": 5_000_000, "Category": "Large-diameter"},
+    "roadNet-CA": {"N": 1_000_000, "M": 5_000_000, "Category": "Small-diameter"},
+    # "GAP-twitter": {"N": 61_000_000, "M": 1_500_000_000, "Category": "Small-diameter"},
+    # "GAP-web": {"N": 50_000_000, "M": 1_900_000_000, "Category": "Small-diameter"},
+
     "GAP-road": {"N": 23_000_000, "M": 58_000_000, "Category": "Large-diameter"},
     "rgg_n_2_22_s0": {"N": 4_000_000, "M": 60_000_000, "Category": "Large-diameter"},
     "europe_osm": {"N": 50_000_000, "M": 108_000_000, "Category": "Large-diameter"},
     "rgg_n_2_24_s0": {"N": 18_000_000, "M": 265_000_000, "Category": "Large-diameter"},
+
     "graph500_20_8": {"N": 1_000_000, "M": 8_000_000, "Category": "Graph500"},
     "graph500_21_8": {"N": 2_000_000, "M": 17_000_000, "Category": "Graph500"},
     "graph500_20_32": {"N": 1_000_000, "M": 33_000_000, "Category": "Graph500"},
@@ -130,7 +132,7 @@ with open(sys.argv[1], 'r') as sout_file:
     # print(ranking_by_graph)
 
     # Plotting
-    fig, axes = plt.subplots(1 + ceil(len(ranking_by_graph.keys())/3), 3, figsize=(17, 10))
+    fig, axes = plt.subplots(ceil(len(ranking_by_graph.keys())/3), 4, figsize=(19, 15))
     axes = axes.flatten()
 
     # Global ranking plot
@@ -159,7 +161,7 @@ with open(sys.argv[1], 'r') as sout_file:
             axes[ax_i],
             [entry['group'] for entry in ranking],
             [entry['speedup'] for entry in ranking],
-            f'Ranking for graph "{dataset[:-4]}"',
+            dataset,
             'Speedup' if ax_i == 3 else '',
         )
         ax_i += 1

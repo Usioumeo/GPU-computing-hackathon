@@ -36,7 +36,7 @@ make all # This will make targets "bin/bfs" "bin/bfs_profiling"
 
 The `bfs_profiling` target will enable NVTX.
 
-### Downloading Datasets (if necessary)
+<!-- ### Downloading Datasets (if necessary)
 
 First, on you system, from the repo root, run:
 
@@ -56,7 +56,7 @@ source .venv/bin/activate
 cd MtxMan
 pip install -r requirements.txt
 python3 scripts/sync_datasets.py --binary-mtx
-```
+``` -->
 
 ## Code
 
@@ -105,22 +105,29 @@ The datasets are divided into three categories:
 
 Here is a summary of theirs characteristics:
 
-| **Name**           | **N** | **M** | **Category**       |
-|--------------------|-------|-------|--------------------|
-| wikipedia-20070206 | 3M    |  45M  | Small-diameter     |
-| soc-LiveJournal1   | 5M    |  69M  | Small-diameter     |
-| hollywood-2009     | 1M    | 114M  | Small-diameter     |
+| **Name**           | **N** | **M** | **Category**       | **Diameter**  |
+|--------------------|-------|-------|--------------------|---------------|
+| roadNet-CA         | 1M    |   5M  | Small-diameter     | 500-600       |
+| wikipedia-20070206 | 3M    |  45M  | Small-diameter     | 459-460       |
+| soc-LiveJournal1   | 5M    |  69M  | Small-diameter     | 14-16         |
+| hollywood-2009     | 1M    | 114M  | Small-diameter     | 9-10          |
+| GAP-road           | 23M   |  58M  | Large-diameter     | 5k-7k         |
+| rgg_n_2_22_s0      | 4M    |  60M  | Large-diameter     | 1k-1.5k       |
+| europe_osm         | 50M   | 108M  | Large-diameter     | 15k-28k       |
+| rgg_n_2_24_s0      | 18M   | 265M  | Large-diameter     | 1.7k-2.7k     |
+| graph500_20_8      | 1M    | 8M    | Graph500 Kronecker | 10-14         |
+| graph500_21_8      | 2M    | 17M   | Graph500 Kronecker | 8-17          |
+| graph500_20_32     | 1M    | 33M   | Graph500 Kronecker | 9-12          |
+| graph500_21_16     | 2M    | 33M   | Graph500 Kronecker | 8-17          |
+
+*The diameter varies depending on the source node*
+
+<!-- 
+| webbase-2001       | 118M  | 1B    | Small-diameter     |
+| twitter7           | 42M   | 1.5B  | Small-diameter     |
 | GAP-twitter        | 61M   | 1.5B  | Small-diameter     |
-| GAP-web            | 50M   | 1.9B  | Small-diameter     |
-| roadNet-CA         | 1M    |   5M  | Large-diameter     |
-| GAP-road           | 23M   |  58M  | Large-diameter     |
-| rgg_n_2_22_s0      | 4M    |  60M  | Large-diameter     |
-| europe_osm         | 50M   | 108M  | Large-diameter     |
-| rgg_n_2_24_s0      | 18M   | 265M  | Large-diameter     |
-| graph500_20_8      | 1M    | 8M    | Graph500 Kronecker |
-| graph500_21_8      | 2M    | 17M   | Graph500 Kronecker |
-| graph500_20_32     | 1M    | 33M   | Graph500 Kronecker |
-| graph500_21_16     | 2M    | 33M   | Graph500 Kronecker |
+| GAP-web            | 50M   | 1.9B  | Small-diameter     | -->
+
 
 
 ## Ranking
@@ -130,3 +137,4 @@ The `submit_results` will automatically upload you results to a shared ranking l
 Some notes about how the ranking works:
 
 * Only submissions with correct results for all graphs will be considered
+* For each group, the submission with the highest global (across all datasets) speedup geomean is considered.

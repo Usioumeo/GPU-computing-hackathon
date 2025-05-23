@@ -37,7 +37,7 @@ ret=$?
 if [[ $ret -eq 0 ]]; then
     res=$(python3 scripts/gather_results_from_sout.py --submission)
     # echo "---------------------------------------"
-    echo "$res"
+    # echo "$res"
     curl -X POST http://thomhub.ddns.net:7700/append -H "Content-Type: application/json" -d "$res"
     # shared_file="$SHARED_DIR/gpu-computing-hackathon-results.json"
     # # if [[ ! -f $shared_file ]]; then

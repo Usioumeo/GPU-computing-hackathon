@@ -8,7 +8,7 @@ GRE='\033[0;32m'
 NC='\033[0m' # No Color
 
 export BIN=bin/bfs
-export ITERATIONS=10
+export ITERATIONS=15
 export HOST="baldo"
 export SHARED_DIR="../shared_test"
 export MTX_PATH="./MtxMan/datasets"

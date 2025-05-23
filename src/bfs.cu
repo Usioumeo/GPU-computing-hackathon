@@ -83,8 +83,8 @@ int main(int argc, char **argv) {
     printf("Failed to import graph from file [%s]\n", args.filename);
     return -1;
   }
-  CPU_TIMER_CLOSE(MTX_read)
-
+  CPU_TIMER_STOP(MTX_read)
+  printf("\n[OUT] MTX file read time: %f ms\n", CPU_TIMER_ELAPSED(MTX_read));
   printf("Graph size: %.3fM vertices, %.3fM edges\n", csr->nrows / 1e6, csr->nnz / 1e6);
 
   GraphCSR graph;

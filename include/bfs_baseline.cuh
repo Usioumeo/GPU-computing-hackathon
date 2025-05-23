@@ -141,6 +141,7 @@ void gpu_bfs_baseline(
   CUDA_TIMER_DESTROY(D2H_copy)
 
   printf("\n[OUT] Total%s BFS time: %f ms\n", is_placeholder ? "" : " BASELINE", tot_time);
+  // printf("\n[OUT] Graph diameter: %u\n", level);
 
   // Free device memory
   cudaFree(d_row_offsets);

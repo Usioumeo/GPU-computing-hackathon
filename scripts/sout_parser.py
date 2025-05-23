@@ -28,7 +28,7 @@ def parse_stdout_file(content: str) -> Union[None,list[tuple[float, float]]]:
             if line.startswith(pfx):
                 lines_ok.append(line)
                 break
-    # Exctract data
+            
     content = '\n'.join(lines_ok)
-    # print(content)
+
     return re.findall(PATTERN, content)

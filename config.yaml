@@ -17,16 +17,18 @@ graph500:
 
 small_diameter:
   suite_sparse_matrix_list:
-    - GAP/GAP-twitter
-    - GAP/GAP-web
+    # - GAP/GAP-twitter
+    # - GAP/GAP-web
+    # - LAW/webbase-2001
+    # - SNAP/twitter7
     - LAW/hollywood-2009
     - SNAP/soc-LiveJournal1
     - Gleich/wikipedia-20070206
+    - SNAP/roadNet-CA
 
 large_diameter:
   suite_sparse_matrix_list:
     - GAP/GAP-road
-    - SNAP/roadNet-CA
     - DIMACS10/europe_osm
     - DIMACS10/rgg_n_2_22_s0
     - DIMACS10/rgg_n_2_24_s0
