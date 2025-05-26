@@ -14,7 +14,7 @@ PATTERN = r'\n'.join(PATTERN)
 # print(f'Pattern: {PATTERN}')
 
 def parse_stdout_file(content: str) -> Union[None,list[tuple[float, float]]]:
-    if 'Correctness OK' not in content:
+    if '[OUT] ALL RESULTS ARE CORRECT' not in content:
         return None
     
     # Remove colors

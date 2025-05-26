@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
   uint32_t *sources = generate_sources(&graph, args.runs, graph.num_vertices, args.source);
   int *distances_gpu_baseline = (int *)malloc(graph.num_vertices * sizeof(int));
   int *distances = (int *)malloc(graph.num_vertices * sizeof(int));
+  bool correct = true;
 
   for (int source_i = 0; source_i < args.runs; source_i++) {
     uint32_t source = sources[source_i];
@@ -127,6 +128,7 @@ int main(int argc, char **argv) {
       } else {
         printf(BRIGHT_RED "GPU and CPU BFS results do not match for source node %u.\n" RESET, source);
         return_code = EXIT_INCORRECT_DISTANCES;
+        correct = false;
       }
     #endif
 
@@ -153,6 +155,9 @@ int main(int argc, char **argv) {
       }
     #endif
   }
+
+  if (correct) printf("\n[OUT] ALL RESULTS ARE CORRECT\n");
+  else         printf(BRIGHT_RED "\nSOME RESULTS ARE WRONG\n" RESET);
 
   Distr_MMIO_CSR_local_destroy(&csr);
   free(sources);
