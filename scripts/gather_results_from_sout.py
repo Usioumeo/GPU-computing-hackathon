@@ -68,7 +68,13 @@ for category, category_res in results.items():
             times = parse_stdout_file(sout)
             # print(f'{times=}')
             if times:
-                speedups = [float(t[1]) / float(t[0]) for t in times]
+                speedups = []
+                for t in times:
+                    diameter = float(t[1])
+                    if diameter > 6:
+                        time_baseline = float(t[0])
+                        time_bfs = float(t[2])
+                        speedups.append(time_baseline / time_bfs)
                 speedups_avg = mean(speedups)
                 category_runtimes.append(speedups_avg)
                 runtimes.append(speedups_avg)
