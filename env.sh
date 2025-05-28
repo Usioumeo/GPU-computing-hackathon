@@ -1,4 +1,6 @@
 ## !! PLEASE MODIFY THE VALUE OF "GROUP_NAME"
+## Write here the name of your group
+## Please use the name you submitted in the registration form  
 export GROUP_NAME="test_group"
 ## !!
 
@@ -10,8 +12,8 @@ NC='\033[0m' # No Color
 export BIN=bin/bfs
 export ITERATIONS=15
 export HOST="baldo"
-export SHARED_DIR="../shared_test"
-export MTX_PATH="./MtxMan/datasets"
+export SHARED_DIR="/data/hackathon"
+export MTX_PATH="${SHARED_DIR}/datasets"
 
 # Read graph paths from matrices_list.txt in each subfolder
 GRAPHS_SMALL_D=()

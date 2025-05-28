@@ -31,10 +31,12 @@ On `baldo`, compiling the project is as easy as it can get:
 
 ```bash
 ml CUDA/12.5.0
-make all # This will make targets "bin/bfs" "bin/bfs_profiling"
+make all # This will make targets "bin/bfs" "bin/bfs_dbg" "bin/bfs_profiling"
 ```
 
-The `bfs_profiling` target will enable NVTX.
+The `bfs_profiling` target will enable NVTX. The `bfs_dbg` target will set the `DEBUG_PRINTS` preprocessor variable, enabling debug prints. *Feel free to change this as needed.*
+
+> **IMPORTANT:** only the target `bin/bfs` will be used in the performance tests.
 
 <!-- ### Downloading Datasets (if necessary)
 

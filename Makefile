@@ -1,6 +1,6 @@
 CUDAC=nvcc
 CUDA_FLAGS=-O3 -Iinclude -arch=sm_80
-C_FLAGS=-Wall -Wextra# -std=c99
+C_FLAGS=-Wall -Wextra # -std=c99
 PROF_FLAGS=-lineinfo
 
 SRC_DIR=src

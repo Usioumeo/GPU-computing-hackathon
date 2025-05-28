@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
     gpu_bfs_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr, graph.col_idx, source, distances_gpu_baseline, false);
 
     #ifdef ENABLE_NVTX
-		  nvtxRangePushA("Total BFS");
+		  nvtxRangePushA("Complete BFS");
     #endif
     gpu_bfs(graph.num_vertices, graph.num_edges, graph.row_ptr, graph.col_idx, source, distances);
     #ifdef ENABLE_NVTX
