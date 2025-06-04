@@ -92,7 +92,7 @@ void gpu_bfs_baseline(
     // Reset counter for next frontier
     CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
 
-    uint32_t block_size = 256;
+    uint32_t block_size = 512;
     uint32_t num_blocks = CEILING(current_frontier_size, block_size);
 
     // CUDA_TIMER_INIT(BFS_kernel)
