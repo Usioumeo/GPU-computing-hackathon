@@ -46,6 +46,10 @@ CATEGORIES_LABELS_DICT = {
     'BFS_g500': 'Graph500',
 }
 
+GROUPS_ALIASES_DICT = {
+    'group': 'test',
+}
+
 # SHARED_DIR = os.environ.get('SHARED_DIR')
 # if not SHARED_DIR:
 #     print('Environment not set. Exiting...')
@@ -57,7 +61,7 @@ def plot_ranking(ax: matplotlib.axes.Axes, x, y, title, y_label=''):
     ax.set_title(title)
     if y_label: ax.set_ylabel(y_label)
     ax.grid(True, axis='y')
-    ax.set_xticks(range(len(x)), x, rotation=45)
+    ax.set_xticks(range(len(x)), [GROUPS_ALIASES_DICT.get(g, g) for g in x], rotation=45)
 
     # Add medal emojis to the first three bars
     # for i, bar in enumerate(bars):
@@ -161,8 +165,8 @@ with open(sys.argv[1], 'r') as sout_file:
             axes[ax_i],
             [entry['group'] for entry in ranking],
             [entry['speedup'] for entry in ranking],
-            dataset,
-            'Speedup' if ax_i == 3 else '',
+            f'Graph: "{dataset}"',
+            'Speedup' if ax_i % 4 == 0 else '',
         )
         ax_i += 1
 

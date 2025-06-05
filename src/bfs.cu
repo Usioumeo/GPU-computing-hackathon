@@ -72,11 +72,21 @@ void gpu_bfs(
 
 int main(int argc, char **argv) {
   int return_code = EXIT_SUCCESS;
+
   Cli_Args args;
   init_cli();
   if (parse_args(argc, argv, &args) != 0) {
     return -1;
   }
+
+  int device_count;
+  cudaGetDeviceCount(&device_count);
+  if (device_count <= 0) {
+    fprintf(stderr, "No GPU available: device_count=%d\n", device_count);
+    return EXIT_FAILURE;
+  }
+  cudaSetDevice(0);
+
   CPU_TIMER_INIT(MTX_read)
   CSR_local<uint32_t, float> *csr = Distr_MMIO_CSR_local_read<uint32_t, float>(args.filename);
   if (csr == NULL) {
