@@ -24,7 +24,7 @@
 
 // Kernel: Process each node in the frontier and add unvisited neighbors to
 // next_frontier
-__global__ void bfs_kernel_our_baseline(
+__global__ void bfs_our_kernel_baseline(
     const uint32_t *row_offsets, // CSR row offsets
     const uint32_t *col_indices, // CSR column indices (neighbors)
     int *distances,              // Output distances array
@@ -34,89 +34,47 @@ __global__ void bfs_kernel_our_baseline(
     uint32_t current_level,      // BFS level (depth)
     uint32_t *next_frontier_size // Counter for next frontier
 ) {
+  uint32_t shared_mem[32];
+  uint32_t size=0;
   uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+
   if (tid >= frontier_size)
     return;
 
   uint32_t node = frontier[tid];
   uint32_t row_start = row_offsets[node];
   uint32_t row_end = row_offsets[node + 1];
-
   for (uint32_t i = row_start; i < row_end; i++) {
     uint32_t neighbor = col_indices[i];
 
     // Use atomic compare-and-swap to avoid revisiting nodes
     if (atomicCAS(&distances[neighbor], -1, current_level + 1) == -1) {
-      // Atomically add the neighbor to the next frontier
-      uint32_t index = atomicAdd(next_frontier_size, 1);
-      next_frontier[index] = neighbor;
-    }
-  }
-}
-
-__global__ void bfs_kernel_bottom_up(
-    const uint32_t *row_offsets,     // CSR row offsets
-    const uint32_t *col_indices,     // CSR column indices (neighbors)
-    int *distances,                  // Output distances array
-    const uint32_t *not_visited,     // List of not visited nodes
-    const uint32_t not_visited_size, // Size of not_visited list (pass by value)
-    uint32_t *next_not_visited,      // Output: nodes still not visited
-    uint32_t *next_not_visited_size, // Counter for next_not_visited
-    uint32_t current_level           // BFS level (depth)
-) {
-  uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= not_visited_size)
-    return;
-
-  uint32_t node = not_visited[tid];
-  uint32_t row_start = row_offsets[node];
-  uint32_t row_end = row_offsets[node + 1];
-
-  // Check if any neighbor has current_level distance
-  for (uint32_t i = row_start; i < row_end; i++) {
-    uint32_t neighbor = col_indices[i];
-    if (distances[neighbor] == current_level) {
-      // Use atomic operation to safely set distance
-      if (atomicCAS(&distances[node], -1, current_level + 1) == -1) {
-        return; // Successfully set distance
+      shared_mem[size++] = neighbor;
+      if (size ==32) {
+        // If shared memory is full, write to next frontier
+        uint32_t index = atomicAdd(next_frontier_size, size);
+        for (uint32_t j = 0; j < size; j++) {
+          next_frontier[index + j] = shared_mem[j];
+        }
+        size = 0; // Reset size for next batch
       }
+      // Atomically add the neighbor to the next frontier
+      //uint32_t index = atomicAdd(next_frontier_size, 1);
+      //next_frontier[index] = neighbor;
     }
   }
-
-  // If not visited in this round, add to next_not_visited
-  uint32_t index = atomicAdd(next_not_visited_size, 1);
-  next_not_visited[index] = node;
-}
-
-__global__ void from_frontier_to_not_visited(
-    int *distances,            // Output distances array
-    uint32_t *not_visited,     // Next frontier to populate
-    uint32_t *not_visited_size // Counter for next frontier
-) {
-  uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (distances[tid] == -1) {
-    // Atomically add the node to the not_visited list
-    uint32_t index = atomicAdd(not_visited_size, 1);
-    not_visited[index] = tid;
-  }
-}
-__global__ void from_not_visited_to_frontier(
-    int *distances,          // Output distances array
-    uint32_t *frontier,      // Next frontier to populate
-    uint32_t *frontier_size, // Counter for next frontier
-    uint32_t current_level   // Next frontier to populate
-) {
-  uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (distances[tid] == current_level) {
-    // Atomically add the node to the not_visited list
-    uint32_t index = atomicAdd(frontier_size, 1);
-    frontier[index] = tid;
+  // If there are remaining neighbors in shared memory, write them to next frontier
+  if (size > 0) {
+    uint32_t index = atomicAdd(next_frontier_size, size);
+    for (uint32_t j = 0; j < size; j++) {
+      next_frontier[index + j] = shared_mem[j];
+    }
   }
 }
 
 void gpu_our_baseline(const uint32_t N, const uint32_t M,
                       const uint32_t *h_rowptr, const uint32_t *h_colidx,
-                      const uint32_t source, int *h_distances, bool is_symmetric) {
+                      const uint32_t source, int *h_distances, bool symmetric) {
   float tot_time = 0.0;
   CUDA_TIMER_INIT(H2D_copy)
 
@@ -140,13 +98,6 @@ void gpu_our_baseline(const uint32_t N, const uint32_t M,
   CHECK_CUDA(cudaMalloc(&d_next_frontier, N * sizeof(uint32_t)));
   CHECK_CUDA(cudaMalloc(&d_next_frontier_size, sizeof(uint32_t)));
 
-  uint32_t *not_visited;
-  uint32_t *next_not_visited;
-  uint32_t *next_not_visited_size;
-  CHECK_CUDA(cudaMalloc(&not_visited, N * sizeof(uint32_t)));
-  CHECK_CUDA(cudaMalloc(&next_not_visited, N * sizeof(uint32_t)));
-  CHECK_CUDA(cudaMalloc(&next_not_visited_size, sizeof(uint32_t)));
-
   std::vector<uint32_t> h_frontier(N);
   h_frontier[0] = source;
 
@@ -154,130 +105,60 @@ void gpu_our_baseline(const uint32_t N, const uint32_t M,
                         cudaMemcpyHostToDevice));
   // Initialize all distances to -1 (unvisited), and source distance to 0
   CHECK_CUDA(cudaMemset(d_distances, -1, N * sizeof(int)));
-  CHECK_CUDA(cudaMemset(d_distances + source, 0, sizeof(int))); // set to 0
+  int zero = 0;
+  CHECK_CUDA(cudaMemcpy(d_distances + source, &zero, sizeof(int),
+                        cudaMemcpyHostToDevice)); // set to 0
 
   CUDA_TIMER_STOP(H2D_copy)
-#ifdef DEBUG_PRINTS
-  CUDA_TIMER_PRINT(H2D_copy)
-#endif
   tot_time += CUDA_TIMER_ELAPSED(H2D_copy);
   CUDA_TIMER_DESTROY(H2D_copy)
 
   uint32_t current_frontier_size = 1;
   uint32_t level = 0;
-  uint32_t visited_count = 1;
-  uint32_t not_visited_size =
-      0; // All nodes except source are initially not visited
-  bool top_down = true;
 
   // Main BFS loop
   CPU_TIMER_INIT(BASELINE_BFS)
-  while (visited_count < N) {
+  while (current_frontier_size > 0) {
 
-#ifdef DEBUG_PRINTS
-    printf("[GPU BFS%s] level=%u, current_frontier_size=%u\n",
-           is_placeholder ? "" : " BASELINE", level, current_frontier_size);
-#endif
-#ifdef ENABLE_NVTX
-    // Mark start of level in NVTX
-    nvtxRangePushA(("BFS Level " + std::to_string(level)).c_str());
-#endif
-    if (top_down && is_symmetric) {
-      // Reset counter for next frontier
-      CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
+    // Reset counter for next frontier
+    CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
 
-      uint32_t block_size = 512;
-      uint32_t num_blocks = CEILING(current_frontier_size, block_size);
+    uint32_t block_size = 512;
+    uint32_t num_blocks = CEILING(current_frontier_size, block_size);
 
-      // CUDA_TIMER_INIT(BFS_kernel)
-      bfs_kernel_our_baseline<<<num_blocks, block_size>>>(
-          d_row_offsets, d_col_indices, d_distances, d_frontier,
-          d_next_frontier, current_frontier_size, level, d_next_frontier_size);
-      CHECK_CUDA(cudaDeviceSynchronize());
-      // CUDA_TIMER_STOP(BFS_kernel)
-      // #ifdef DEBUG_PRINTS
-      //   CUDA_TIMER_PRINT(BFS_kernel)
-      // #endif
-      // CUDA_TIMER_DESTROY(BFS_kernel)
+    // CUDA_TIMER_INIT(BFS_kernel)
+    bfs_our_kernel_baseline<<<num_blocks, block_size>>>(
+        d_row_offsets, d_col_indices, d_distances, d_frontier, d_next_frontier,
+        current_frontier_size, level, d_next_frontier_size);
+    CHECK_CUDA(cudaGetLastError());
+        CHECK_CUDA(cudaDeviceSynchronize());
+    // CUDA_TIMER_STOP(BFS_kernel)
+    // #ifdef DEBUG_PRINTS
+    //   CUDA_TIMER_PRINT(BFS_kernel)
+    // #endif
+    // CUDA_TIMER_DESTROY(BFS_kernel)
 
-      // Swap frontier pointers
-      std::swap(d_frontier, d_next_frontier);
+    // Swap frontier pointers
+    std::swap(d_frontier, d_next_frontier);
 
-      // Copy size of next frontier to host
-      CHECK_CUDA(cudaMemcpy(&current_frontier_size, d_next_frontier_size,
-                            sizeof(uint32_t), cudaMemcpyDeviceToHost));
-      if (current_frontier_size == 0) {
-        // No more nodes to visit, exit early
-        break;
-      }
-    } else {
-      CHECK_CUDA(cudaMemset(next_not_visited_size, 0, sizeof(uint32_t)));
-      uint32_t block_size = 512;
-      uint32_t num_blocks = CEILING(not_visited_size, block_size);
-      // bottom up bfs
-      bfs_kernel_bottom_up<<<num_blocks, block_size>>>(
-          d_row_offsets, d_col_indices, d_distances, not_visited,
-          not_visited_size, next_not_visited, next_not_visited_size, level);
-
-      CHECK_CUDA(cudaDeviceSynchronize());
-      // Swap frontier pointers
-      std::swap(not_visited, next_not_visited);
-      uint32_t prec_not_visited_size = not_visited_size;
-      // Copy size of next frontier to host
-      CHECK_CUDA(cudaMemcpy(&not_visited_size, next_not_visited_size,
-                            sizeof(uint32_t), cudaMemcpyDeviceToHost));
-
-      CHECK_CUDA(cudaDeviceSynchronize());
-      if(prec_not_visited_size == not_visited_size) {
-        break;
-      }
-      // TODO maybe it is not N
-      visited_count = N - not_visited_size;
-    }
+    // Copy size of next frontier to host
+    CHECK_CUDA(cudaMemcpy(&current_frontier_size, d_next_frontier_size,
+                          sizeof(uint32_t), cudaMemcpyDeviceToHost));
     level++;
-    // check euristic
-    if (top_down) { // total_visited >=M/14
-      top_down = false;
-      not_visited_size = 0;
-      int block_size = 512;
-      int num_blocks = CEILING(N, block_size);
-      printf("switching euristic\n");
-      // Reset next_not_visited_size to 0 before kernel launch
-      CHECK_CUDA(cudaMemset(next_not_visited_size, 0, sizeof(uint32_t)));
-      from_frontier_to_not_visited<<<num_blocks, block_size>>>(
-          d_distances, next_not_visited, next_not_visited_size);
-
-      CHECK_CUDA(cudaDeviceSynchronize());
-      std::swap(not_visited, next_not_visited);
-      CHECK_CUDA(cudaMemcpy(&not_visited_size, next_not_visited_size,
-                            sizeof(uint32_t), cudaMemcpyDeviceToHost));
-      // Copy size of next frontier to host
-
-      // exit(-1);
-    }
-#ifdef ENABLE_NVTX
-    // End NVTX range for level
-    nvtxRangePop();
-#endif
+    //printf("level %u\n", level);
   }
   CPU_TIMER_STOP(BASELINE_BFS)
-#ifdef DEBUG_PRINTS
-  CPU_TIMER_PRINT(BASELINE_BFS)
-#endif
   tot_time += CPU_TIMER_ELAPSED(BASELINE_BFS);
 
   CUDA_TIMER_INIT(D2H_copy)
   CHECK_CUDA(cudaMemcpy(h_distances, d_distances, N * sizeof(int),
                         cudaMemcpyDeviceToHost));
   CUDA_TIMER_STOP(D2H_copy)
-#ifdef DEBUG_PRINTS
-  CUDA_TIMER_PRINT(D2H_copy)
-#endif
   tot_time += CUDA_TIMER_ELAPSED(D2H_copy);
   CUDA_TIMER_DESTROY(D2H_copy)
 
   printf("\n[OUT] Total BFS time: %f ms\n", tot_time);
-  printf("[OUT] Graph diameter: %u\n", level+1);
+  printf("[OUT] Graph diameter: %u\n", level);
 
   // Free device memory
   cudaFree(d_row_offsets);
@@ -304,10 +185,11 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
   cudaSetDevice(0);
-  Matrix_Metadata metadata;//=(Matrix_Metadata*)malloc(sizeof(Matrix_Metadata));
+  Matrix_Metadata
+      metadata; //=(Matrix_Metadata*)malloc(sizeof(Matrix_Metadata));
   CPU_TIMER_INIT(MTX_read)
-  CSR_local<uint32_t, float> *csr =
-      Distr_MMIO_CSR_local_read<uint32_t, float>(args.filename, false, &metadata);
+  CSR_local<uint32_t, float> *csr = Distr_MMIO_CSR_local_read<uint32_t, float>(
+      args.filename, false, &metadata);
   if (csr == NULL) {
     printf("Failed to import graph from file [%s]\n", args.filename);
     return -1;
