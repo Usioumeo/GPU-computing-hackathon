@@ -8,5 +8,5 @@ while true; do
     # python3 gen_ranking.py baldo/$RESULTS_PATH
     curl http://thomhub.ddns.net:7700/data > gpu-computing-hackathon-results.json
     python3 gen_ranking.py gpu-computing-hackathon-results.json
-    sleep 30
+    sleep 240
 done

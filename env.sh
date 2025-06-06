@@ -13,7 +13,11 @@ export BIN=bin/bfs
 export ITERATIONS=15
 export HOST="baldo"
 export SHARED_DIR="/data/hackathon"
-export MTX_PATH="${SHARED_DIR}/datasets"
+if [[ ! -z $1 ]]; then
+    export MTX_PATH=$1
+else
+    export MTX_PATH="${SHARED_DIR}/datasets"
+fi
 
 # Read graph paths from matrices_list.txt in each subfolder
 GRAPHS_SMALL_D=()
@@ -31,6 +35,12 @@ while IFS= read -r line; do
     GRAPHS_G500+=("$line")
 done < "$MTX_PATH/graph500/matrices_list.txt"
 
+ALL_GRAPHS=()
+while IFS= read -r line; do
+    ALL_GRAPHS+=("$line")
+done < "$MTX_PATH/matrices_list.txt"
+
 export GRAPHS_SMALL_D
 export GRAPHS_LARGE_D
 export GRAPHS_G500
+export ALL_GRAPHS
