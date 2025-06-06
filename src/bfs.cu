@@ -102,39 +102,37 @@ __global__ void bfs_kernel_our_baseline(
 }
 
 __global__ void bfs_kernel_bottom_up(
-    const uint32_t *row_offsets, // CSR row offsets
-    const uint32_t *col_indices, // CSR column indices (neighbors)
-    int *distances,              // Output distances array
-    const uint32_t *not_visited, // Current frontier 1 when present
-    uint32_t *not_visited_count, // Next frontier to populate
-    uint32_t *next_not_visited,
-    uint32_t *next_not_visited_size, // Counter for next frontier
-    uint32_t not_visited_size,       // Size of current frontier
-    uint32_t current_level           // BFS level (depth)
+  const uint32_t *row_offsets,      // CSR row offsets
+  const uint32_t *col_indices,      // CSR column indices (neighbors)
+  int *distances,                   // Output distances array
+  const uint32_t *not_visited,      // List of not visited nodes
+  const uint32_t not_visited_size,  // Size of not_visited list (pass by value)
+  uint32_t *next_not_visited,       // Output: nodes still not visited
+  uint32_t *next_not_visited_size,  // Counter for next_not_visited
+  uint32_t current_level            // BFS level (depth)
 ) {
   uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= not_visited_size)
+    return;
+    
   uint32_t node = not_visited[tid];
   uint32_t row_start = row_offsets[node];
   uint32_t row_end = row_offsets[node + 1];
-  bool visited_flag = false;
+  
+  // Check if any neighbor has current_level distance
   for (uint32_t i = row_start; i < row_end; i++) {
     uint32_t neighbor = col_indices[i];
-
-    // Use atomic compare-and-swap to avoid revisiting nodes
-    if (distances[neighbor] <= current_level && distances[neighbor] >= 0) {
-      // Atomically add the neighbor to the next frontier
-      // uint32_t index = atomicAdd(next_not_visited_size, 1);
-      // visited_flag = true;
-      distances[node] = current_level + 1;
-      return;
-      // next_not_visited[index] = node;
+    if (distances[neighbor] == current_level) {
+      // Use atomic operation to safely set distance
+      if (atomicCAS(&distances[node], -1, current_level + 1) == -1) {
+        return; // Successfully set distance
+      }
     }
   }
-  if (!visited_flag) {
-    // Atomically add the neighbor to the next frontier
-    uint32_t index = atomicAdd(next_not_visited_size, 1);
-    next_not_visited[index] = node;
-  }
+  
+  // If not visited in this round, add to next_not_visited
+  uint32_t index = atomicAdd(next_not_visited_size, 1);
+  next_not_visited[index] = node;
 }
 
 __global__ void from_frontier_to_not_visited(
@@ -147,6 +145,8 @@ __global__ void from_frontier_to_not_visited(
     // Atomically add the node to the not_visited list
     uint32_t index = atomicAdd(not_visited_size, 1);
     not_visited[index] = tid;
+  } else {
+    printf("porco\n");
   }
 }
 __global__ void from_not_visited_to_frontier(
@@ -164,12 +164,12 @@ __global__ void from_not_visited_to_frontier(
 }
 
 void gpu_our_baseline(const uint32_t N,         // Number of veritices
-             const uint32_t M,         // Number of edges
-             const uint32_t *h_rowptr, // Graph CSR rowptr
-             const uint32_t *h_colidx, // Graph CSR colidx
-             const uint32_t source,    // Source veritex
-             int *h_distances          // Write here your distances
-             ) {
+                      const uint32_t M,         // Number of edges
+                      const uint32_t *h_rowptr, // Graph CSR rowptr
+                      const uint32_t *h_colidx, // Graph CSR colidx
+                      const uint32_t source,    // Source veritex
+                      int *h_distances          // Write here your distances
+) {
   float tot_time = 0.0;
   CUDA_TIMER_INIT(H2D_copy)
 
@@ -188,9 +188,6 @@ void gpu_our_baseline(const uint32_t N,         // Number of veritices
   uint32_t *d_frontier;
   uint32_t *d_next_frontier;
   uint32_t *d_next_frontier_size;
-
-  
-
 
   CHECK_CUDA(cudaMalloc(&d_distances, N * sizeof(int)));
   CHECK_CUDA(cudaMalloc(&d_frontier, N * sizeof(uint32_t)));
@@ -227,8 +224,8 @@ void gpu_our_baseline(const uint32_t N,         // Number of veritices
   bool top_down = true;
   // Main BFS loop
   CPU_TIMER_INIT(BASELINE_BFS)
-  uint32_t total_visited =1;
-  while (current_frontier_size > 0) {
+  uint32_t total_visited = 1;
+  while (total_visited <N) {
 
 #ifdef DEBUG_PRINTS
     printf("[GPU BFS%s] level=%u, current_frontier_size=%u\n",
@@ -263,14 +260,20 @@ void gpu_our_baseline(const uint32_t N,         // Number of veritices
       CHECK_CUDA(cudaMemcpy(&current_frontier_size, d_next_frontier_size,
                             sizeof(uint32_t), cudaMemcpyDeviceToHost));
       total_visited += current_frontier_size;
-    }else{
+      printf("Total visited 1= %d %d\n", total_visited, current_frontier_size);
+    } else {
+      printf("%d %d %d\n", level, total_visited, not_visited_size);
+      // todo remove
+      if (level >= 40) {
+        exit(0);
+      }
+      CHECK_CUDA(cudaMemset(next_not_visited_size, 0, sizeof(uint32_t)));
       uint32_t block_size = 512;
-      uint32_t num_blocks = CEILING(current_frontier_size, block_size);
+      uint32_t num_blocks = CEILING(not_visited_size, block_size);
       // bottom up bfs
       bfs_kernel_bottom_up<<<num_blocks, block_size>>>(
-          d_row_offsets, d_col_indices, d_distances, d_frontier,
-          &not_visited_size, next_not_visited, next_not_visited_size,
-          current_frontier_size, level);
+          d_row_offsets, d_col_indices, d_distances, not_visited,
+          not_visited_size, next_not_visited, next_not_visited_size, level);
 
       CHECK_CUDA(cudaDeviceSynchronize());
       // Swap frontier pointers
@@ -278,23 +281,35 @@ void gpu_our_baseline(const uint32_t N,         // Number of veritices
       // Copy size of next frontier to host
       CHECK_CUDA(cudaMemcpy(&not_visited_size, next_not_visited_size,
                             sizeof(uint32_t), cudaMemcpyDeviceToHost));
-      //TODO maybe it is not N
-      total_visited = N-not_visited_size;
+      CHECK_CUDA(cudaDeviceSynchronize());
+      // TODO maybe it is not N
+      printf("not visited size at iteration(%d) %d\n", level, not_visited_size);
+      total_visited = N - not_visited_size;
+      printf("post tot visit %d\n", total_visited);
     }
     level++;
-  //check euristic
-  if(total_visited >=M/14 ){
-    top_down = false;
-    not_visited_size = 0;
-    int block_size = 512;
-    int num_blocks = CEILING(N, block_size);
+    // check euristic
+    if (top_down) { // total_visited >=M/14
+      top_down = false;
+      not_visited_size = 0;
+      int block_size = 512;
+      int num_blocks = CEILING(N, block_size);
+      printf("switching euristic\n");
+      // Reset next_not_visited_size to 0 before kernel launch
+      CHECK_CUDA(cudaMemset(next_not_visited_size, 0, sizeof(uint32_t)));
+      from_frontier_to_not_visited<<<num_blocks, block_size>>>(
+          d_distances, next_not_visited, next_not_visited_size);
 
-    from_frontier_to_not_visited<<<num_blocks, block_size>>>(d_distances, next_not_visited, next_not_visited_size);
-    std::swap(not_visited, next_not_visited);
-      // Copy size of next frontier to host
+      CHECK_CUDA(cudaDeviceSynchronize());
+      std::swap(not_visited, next_not_visited);
       CHECK_CUDA(cudaMemcpy(&not_visited_size, next_not_visited_size,
                             sizeof(uint32_t), cudaMemcpyDeviceToHost));
-  }
+      // Copy size of next frontier to host
+      printf("Total visited = %d %d %d\n", total_visited, N - not_visited_size,
+             N);
+
+      // exit(-1);
+    }
 #ifdef ENABLE_NVTX
     // End NVTX range for level
     nvtxRangePop();
@@ -316,9 +331,7 @@ void gpu_our_baseline(const uint32_t N,         // Number of veritices
   tot_time += CUDA_TIMER_ELAPSED(D2H_copy);
   CUDA_TIMER_DESTROY(D2H_copy)
 
-  printf("\n[OUT] Total BFS time: %f ms\n",
-         tot_time);
-
+  printf("\n[OUT] Total BFS time: %f ms\n", tot_time);
 
   // Free device memory
   cudaFree(d_row_offsets);
@@ -342,7 +355,7 @@ void gpu_bfs(const uint32_t N,         // Number of veritices
    * *********************/
 
   // !! This is just a placeholder !!
-   gpu_bfs_baseline(N, M, h_rowptr, h_colidx, source, h_distances, true);
+  gpu_bfs_baseline(N, M, h_rowptr, h_colidx, source, h_distances, true);
 
   // !! This is an example of how to keep track of runtime. Make sure to include
   // everything. !!
@@ -399,14 +412,16 @@ int main(int argc, char **argv) {
   cudaSetDevice(0);
 
   CPU_TIMER_INIT(MTX_read)
-  CSR_local<uint32_t, float> *csr = Distr_MMIO_CSR_local_read<uint32_t, float>(args.filename);
+  CSR_local<uint32_t, float> *csr =
+      Distr_MMIO_CSR_local_read<uint32_t, float>(args.filename);
   if (csr == NULL) {
     printf("Failed to import graph from file [%s]\n", args.filename);
     return -1;
   }
   CPU_TIMER_STOP(MTX_read)
   printf("\n[OUT] MTX file read time: %f ms\n", CPU_TIMER_ELAPSED(MTX_read));
-  printf("Graph size: %.3fM vertices, %.3fM edges\n", csr->nrows / 1e6, csr->nnz / 1e6);
+  printf("Graph size: %.3fM vertices, %.3fM edges\n", csr->nrows / 1e6,
+         csr->nnz / 1e6);
 
   GraphCSR graph;
   graph.row_ptr = csr->row_ptr;
@@ -415,7 +430,8 @@ int main(int argc, char **argv) {
   graph.num_edges = csr->nnz;
   // print_graph_csr(graph);
 
-  uint32_t *sources = generate_sources(&graph, args.runs, graph.num_vertices, args.source);
+  uint32_t *sources =
+      generate_sources(&graph, args.runs, graph.num_vertices, args.source);
   int *distances_gpu_baseline = (int *)malloc(graph.num_vertices * sizeof(int));
   int *distances = (int *)malloc(graph.num_vertices * sizeof(int));
   bool correct = true;
@@ -425,13 +441,14 @@ int main(int argc, char **argv) {
     printf("\n[OUT] -- BFS iteration #%u, source=%u --\n", source_i, source);
 
     // Run the BFS baseline
-    gpu_bfs_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr, graph.col_idx, source, distances_gpu_baseline, false);
+    gpu_bfs_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr,
+                     graph.col_idx, source, distances_gpu_baseline, false);
 
 #ifdef ENABLE_NVTX
     nvtxRangePushA("Complete BFS");
 #endif
-    gpu_our_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr, graph.col_idx,
-            source, distances);
+    gpu_our_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr,
+                     graph.col_idx, source, distances);
 #ifdef ENABLE_NVTX
     nvtxRangePop();
 #endif

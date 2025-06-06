@@ -14,7 +14,7 @@
 
 #define CHECK_CUDA(call) \
     if ((call) != cudaSuccess) { \
-        fprintf(stderr, "CUDA error at %s:%u\n", __FILE__, __LINE__); \
+        fprintf(stderr, "CUDA error at %s:%u %u\n", __FILE__, __LINE__, call); \
         exit(1); \
     }
 
