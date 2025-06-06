@@ -8,3 +8,4 @@ scripts/*.jsonl
 
 *.nsys-rep
 *.sqlite
+data*
