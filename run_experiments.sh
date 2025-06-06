@@ -29,13 +29,9 @@ if [[ -z $SbM_HOME ]]; then
         cd ..
         source SbatchMan/sourceFile.sh
         # 1 node, 1 CPU, 1 GPU, no MPI
-        SbatchMan/newExperiment.sh -a hackaton -p "edu-short" -t 00:04:00 -e BFS_smallD -n 1 -c 1 -g 1 -d 1 -b $BIN # -r 
-        SbatchMan/newExperiment.sh -a hackaton -p "edu-short" -t 00:04:00 -e BFS_largeD -n 1 -c 1 -g 1 -d 1 -b $BIN # -r 
-        SbatchMan/newExperiment.sh -a hackaton -p "edu-short" -t 00:04:00 -e BFS_g500   -n 1 -c 1 -g 1 -d 1 -b $BIN # -r 
-
-        # FIXME delete
-        # SbatchMan/newExperiment.sh -s gpu -t 00:00:10 -e BFS_smallD -a m4341_g -q debug -n 1 -c 1 -g 1 -d 1 -b $BIN 
-        # SbatchMan/newExperiment.sh -s gpu -t 00:00:10 -e BFS_largeD -a m4341_g -q debug -n 1 -c 1 -g 1 -d 1 -b $BIN 
+        SbatchMan/newExperiment.sh -a hackaton -p "edu-short" -t 00:04:00 -e BFS_smallD -n 1 -c 1 -g 1 -d 1 -w edu01 -b $BIN 
+        SbatchMan/newExperiment.sh -a hackaton -p "edu-short" -t 00:04:00 -e BFS_largeD -n 1 -c 1 -g 1 -d 1 -w edu01 -b $BIN 
+        SbatchMan/newExperiment.sh -a hackaton -p "edu-short" -t 00:04:00 -e BFS_g500   -n 1 -c 1 -g 1 -d 1 -w edu01 -b $BIN
     else
         source SbatchMan/sourceFile.sh
     fi

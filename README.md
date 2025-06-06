@@ -87,6 +87,21 @@ Please use the following to run you experiments:
 
 Running the script will take care of setting the correct configuration for SLURM and submits one job per graph.
 
+### Local Testing
+
+To run test on your (local) machine, run:
+
+```bash
+./run_local_experiments_and_analyse.sh # [--skip-experiments] this just analyses the results
+```
+
+This will:
+- Download the graphs (4GB disk space required)
+- Run `bin/bfs` on each graph
+- Parse their stdout+stderr with `scripts/gather_results_from_sout_local.py`
+
+Feel free to customize `scripts/gather_results_from_sout_local.py` as needed.
+
 ## Submitting Results
 
 To submit the results:

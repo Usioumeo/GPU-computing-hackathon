@@ -47,7 +47,7 @@ CATEGORIES_LABELS_DICT = {
 }
 
 GROUPS_ALIASES_DICT = {
-    'group': 'test',
+    'GpuComputingOnRustToAnnoyTheProff': 'GCORTATP',
 }
 
 # SHARED_DIR = os.environ.get('SHARED_DIR')
@@ -136,7 +136,7 @@ with open(sys.argv[1], 'r') as sout_file:
     # print(ranking_by_graph)
 
     # Plotting
-    fig, axes = plt.subplots(ceil(len(ranking_by_graph.keys())/3), 4, figsize=(19, 15))
+    fig, axes = plt.subplots(ceil(len(ranking_by_graph.keys())/3), 4, figsize=(25, 20))
     axes = axes.flatten()
 
     # Global ranking plot
