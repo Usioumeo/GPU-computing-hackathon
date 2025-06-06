@@ -58,7 +58,7 @@ if [[ $SKIP_EXPERIMENTS -eq 0 ]]; then
         echo "----- Testing '$(basename "${graph%.*}")' graph -----"
         out_file="results/res_$(basename "${graph%.*}").out"
         $BIN -f "$MTX_PATH/$graph" -n $ITERATIONS > $out_file
-        echo "Return code: $?" | tee $out_file
+        echo "Return code: $?" | tee -a $out_file
     done
 else
     echo "Skipping experiments as requested by --skip-experiments flag."
