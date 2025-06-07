@@ -157,24 +157,28 @@ void gpu_bfs_coalesced_shared_copy(const uint32_t N, const uint32_t M,
 #endif
 
     // Reset counter for next frontier
-    CHECK_CUDA(cudaMemsetAsync(d_next_frontier_size, 0, sizeof(uint32_t), stream_while));
+    CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
 
     // CUDA_TIMER_INIT(BFS_kernel)
     dim3 block_dim(32, 16);
     dim3 grid_dim(CEILING(current_frontier_size, block_dim.x));
-    bfs_kernel_coalesced_shared_copy<<<grid_dim, block_dim, 0, stream_while>>>(
+    bfs_kernel_coalesced_shared_copy<<<grid_dim, block_dim>>>(
         d_row_offsets, d_col_indices, d_distances, d_frontier, d_next_frontier,
         current_frontier_size, level, d_next_frontier_size);
-    
-        //CHECK_CUDA(cudaDeviceSynchronize());
+    CHECK_CUDA(cudaDeviceSynchronize());
+    // CUDA_TIMER_STOP(BFS_kernel)
+    // #ifdef DEBUG_PRINTS
+    //   CUDA_TIMER_PRINT(BFS_kernel)
+    // #endif
+    // CUDA_TIMER_DESTROY(BFS_kernel)
 
-    CHECK_CUDA(cudaMemcpyAsync(&current_frontier_size, d_next_frontier_size,
-                          sizeof(uint32_t), cudaMemcpyDeviceToHost, stream_while));
     // Swap frontier pointers
     std::swap(d_frontier, d_next_frontier);
-    
-    level++;
-    CHECK_CUDA(cudaStreamSynchronize(stream_col));
+
+    // Copy size of next frontier to host
+    CHECK_CUDA(cudaMemcpy(&current_frontier_size, d_next_frontier_size,
+                          sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    level++;;
 
 #ifdef ENABLE_NVTX
     // End NVTX range for level
