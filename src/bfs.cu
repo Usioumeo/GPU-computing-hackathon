@@ -67,6 +67,22 @@ int main(int argc, char **argv) {
   int *distances_gpu_baseline = (int *)malloc(graph.num_vertices * sizeof(int));
   int *distances = (int *)malloc(graph.num_vertices * sizeof(int));
   bool correct = true;
+  
+  uint32_t *d_row_ptr_pinned, *d_col_idx_pinned;
+  int *distances_pinned;
+  CHECK_CUDA(cudaMallocHost((void **)&d_row_ptr_pinned,
+                            (graph.num_vertices + 1) * sizeof(uint32_t)));
+  CHECK_CUDA(cudaMallocHost((void **)&d_col_idx_pinned,
+                            graph.num_edges * sizeof(uint32_t)));
+  CHECK_CUDA(cudaMallocHost((void **)&distances_pinned,
+                            graph.num_vertices * sizeof(int)));
+  CHECK_CUDA(cudaMemcpy(d_row_ptr_pinned, graph.row_ptr,
+                        (graph.num_vertices + 1) * sizeof(uint32_t),
+                        cudaMemcpyHostToHost));
+  CHECK_CUDA(cudaMemcpy(d_col_idx_pinned, graph.col_idx,
+                        graph.num_edges * sizeof(uint32_t),
+                        cudaMemcpyHostToHost));
+  
 
   for (int source_i = 0; source_i < args.runs; source_i++) {
     uint32_t source = sources[source_i];
@@ -79,8 +95,12 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_NVTX
     nvtxRangePushA("Complete BFS");
 #endif
-    gpu_bfs_coalesced_shared_copy(graph.num_vertices, graph.num_edges, graph.row_ptr,
-                     graph.col_idx, source, distances);
+    gpu_bfs_coalesced_shared_copy(graph.num_vertices, graph.num_edges, d_row_ptr_pinned,
+                     d_col_idx_pinned, source, distances_pinned);
+    CHECK_CUDA(cudaMemcpy(distances, distances_pinned,
+                          graph.num_vertices * sizeof(int),
+                          cudaMemcpyHostToHost));
+        
 #ifdef ENABLE_NVTX
     nvtxRangePop();
 #endif
