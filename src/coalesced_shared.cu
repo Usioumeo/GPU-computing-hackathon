@@ -2,19 +2,23 @@
 #include <vector>
 // Kernel: Process each node in the frontier and add unvisited neighbors to
 // next_frontier
-
-__global__ void bfs_kernel_coalesced(
-    const uint32_t *row_offsets,
-    const uint32_t *col_indices,
-    int *distances,
-    const uint32_t *frontier,
-    uint32_t *next_frontier,
-    uint32_t frontier_size,
-    uint32_t current_level,
-    uint32_t *next_frontier_size
-) {
+#define SHARED_BUFFER_SIZE 10000 // Adjusted for shared memory size
+__global__ void bfs_kernel_coalesced_shared(
+    const uint32_t *row_offsets, const uint32_t *col_indices, int *distances,
+    const uint32_t *frontier, uint32_t *next_frontier, uint32_t frontier_size,
+    uint32_t current_level, uint32_t *next_frontier_size) {
+  __shared__ uint32_t shared_buffer[SHARED_BUFFER_SIZE];
+  __shared__ uint32_t shared_buffer_size;
+  __shared__ uint32_t start_index;
+   __shared__ uint32_t flush_size;
   uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= frontier_size) return;
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
+    shared_buffer_size =
+        0; // Reset shared buffer size at the start of each block
+  }
+  __syncthreads();
+  if (tid >= frontier_size)
+    return;
 
   uint32_t node = frontier[tid];
   uint32_t row_start = row_offsets[node];
@@ -23,15 +27,36 @@ __global__ void bfs_kernel_coalesced(
   for (uint32_t i = row_start + threadIdx.y; i < row_end; i += blockDim.y) {
     uint32_t neighbor = col_indices[i];
     if (atomicCAS(&distances[neighbor], -1, current_level + 1) == -1) {
-      uint32_t index = atomicAdd(next_frontier_size, 1);
-      next_frontier[index] = neighbor;
+      uint32_t index_shared = atomicAdd(&shared_buffer_size, 1);
+      if (index_shared < SHARED_BUFFER_SIZE) {
+        shared_buffer[index_shared] = neighbor;
+      } else {
+        // If shared buffer is full, flush it to next_frontier
+        uint32_t index = atomicAdd(next_frontier_size, 1);
+        next_frontier[index] = neighbor;
+      }
+    }
+  }
+  __syncthreads();
+  if (threadIdx.x == 0) {
+    uint32_t flush_size = min(shared_buffer_size, SHARED_BUFFER_SIZE);
+    if(threadIdx.y == 0) {
+      start_index = atomicAdd(next_frontier_size, flush_size);
+    }
+    __syncthreads();
+
+
+    for (uint32_t i = threadIdx.y; i < flush_size; i+=blockDim.y) {
+      //uint32_t index = atomicAdd(next_frontier_size, 1);
+      next_frontier[start_index+i] = shared_buffer[i];
     }
   }
 }
 
-void gpu_bfs_coalesced(const uint32_t N, const uint32_t M,
-                       const uint32_t *h_rowptr, const uint32_t *h_colidx,
-                       const uint32_t source, int *h_distances) {
+void gpu_bfs_coalesced_shared(const uint32_t N, const uint32_t M,
+                              const uint32_t *h_rowptr,
+                              const uint32_t *h_colidx, const uint32_t source,
+                              int *h_distances) {
   float tot_time = 0.0;
   CUDA_TIMER_INIT(H2D_copy)
 
@@ -91,11 +116,10 @@ void gpu_bfs_coalesced(const uint32_t N, const uint32_t M,
     // Reset counter for next frontier
     CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
 
-
     // CUDA_TIMER_INIT(BFS_kernel)
     dim3 block_dim(32, 16);
     dim3 grid_dim(CEILING(current_frontier_size, block_dim.x));
-    bfs_kernel_coalesced<<<grid_dim, block_dim>>>(
+    bfs_kernel_coalesced_shared<<<grid_dim, block_dim>>>(
         d_row_offsets, d_col_indices, d_distances, d_frontier, d_next_frontier,
         current_frontier_size, level, d_next_frontier_size);
     CHECK_CUDA(cudaDeviceSynchronize());
@@ -135,7 +159,6 @@ void gpu_bfs_coalesced(const uint32_t N, const uint32_t M,
   CUDA_TIMER_DESTROY(D2H_copy)
 
   printf("\n[OUT] Total BFS time: %f ms\n" RESET, tot_time);
-
 
   // Free device memory
   cudaFree(d_row_offsets);

@@ -22,6 +22,7 @@
 
 #include"flush.cu"
 #include "coalesced.cu"
+#include"coalesced_shared.cu"
 int main(int argc, char **argv) {
   int return_code = EXIT_SUCCESS;
 
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_NVTX
     nvtxRangePushA("Complete BFS");
 #endif
-    gpu_bfs_coalesced(graph.num_vertices, graph.num_edges, graph.row_ptr,
+    gpu_bfs_coalesced_shared(graph.num_vertices, graph.num_edges, graph.row_ptr,
                      graph.col_idx, source, distances);
 #ifdef ENABLE_NVTX
     nvtxRangePop();
