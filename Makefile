@@ -10,8 +10,8 @@ DIST_MMIO=distributed_mmio
 DIST_MMIO_INCLUDE=$(DIST_MMIO)/include
 DIST_MMIO_SRCS=$(DIST_MMIO)/src/mmio.cpp $(DIST_MMIO)/src/mmio_utils.cpp
 
-# SRCS=$(wildcard $(SRC_DIR)/{*.c,*.cpp,*.cu,*.cuh})
-SRCS=$(SRC_DIR)/bfs.cu
+#SRCS=$(wildcard $(SRC_DIR)/*.cu)
+SRCS=$(SRC_DIR)/bfs.cu #$(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*.cpp) 
 
 all: $(BIN_DIR)/bfs $(BIN_DIR)/bfs_profiling
 
