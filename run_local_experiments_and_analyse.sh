@@ -42,7 +42,7 @@ download_via_ssh() {
     fi
 }
 
-download_via_ssh . "${UNITN_USER}@baldo.disi.unitn.it" /data/hackathon/datasets
+#download_via_ssh . "${UNITN_USER}@baldo.disi.unitn.it" /data/hackathon/datasets
 
 source env.sh "./data/hackathon/datasets"
 

@@ -76,8 +76,8 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_NVTX
     nvtxRangePushA("Complete BFS");
 #endif
-    gpu_our_baseline(graph.num_vertices, graph.num_edges, graph.row_ptr,
-                     graph.col_idx, source, distances, metadata.is_symmetric);
+    gpu_bfs_coalesced(graph.num_vertices, graph.num_edges, graph.row_ptr,
+                     graph.col_idx, source, distances);
 #ifdef ENABLE_NVTX
     nvtxRangePop();
 #endif
