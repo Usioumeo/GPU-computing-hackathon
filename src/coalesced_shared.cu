@@ -10,7 +10,6 @@ __global__ void bfs_kernel_coalesced_shared(
   __shared__ uint32_t shared_buffer[SHARED_BUFFER_SIZE];
   __shared__ uint32_t shared_buffer_size;
   __shared__ uint32_t start_index;
-   __shared__ uint32_t flush_size;
   uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (threadIdx.x == 0 && threadIdx.y == 0) {
     shared_buffer_size =
@@ -38,20 +37,19 @@ __global__ void bfs_kernel_coalesced_shared(
     }
   }
   __syncthreads();
-  if (threadIdx.x == 0) {
+
     uint32_t flush_size = min(shared_buffer_size, SHARED_BUFFER_SIZE);
-    if(threadIdx.y == 0) {
+    if(threadIdx.y == 0 && threadIdx.x == 0) {
       start_index = atomicAdd(next_frontier_size, flush_size);
     }
     __syncthreads();
-
 
     for (uint32_t i = threadIdx.y; i < flush_size; i+=blockDim.y) {
       //uint32_t index = atomicAdd(next_frontier_size, 1);
       next_frontier[start_index+i] = shared_buffer[i];
     }
   }
-}
+
 
 void gpu_bfs_coalesced_shared(const uint32_t N, const uint32_t M,
                               const uint32_t *h_rowptr,
@@ -117,7 +115,7 @@ void gpu_bfs_coalesced_shared(const uint32_t N, const uint32_t M,
     CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
 
     // CUDA_TIMER_INIT(BFS_kernel)
-    dim3 block_dim(32, 16);
+    dim3 block_dim(24, 32);
     dim3 grid_dim(CEILING(current_frontier_size, block_dim.x));
     bfs_kernel_coalesced_shared<<<grid_dim, block_dim>>>(
         d_row_offsets, d_col_indices, d_distances, d_frontier, d_next_frontier,

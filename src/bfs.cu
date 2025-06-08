@@ -20,11 +20,12 @@
 #include "../include/mt19937-64.hpp"
 #include "../include/utils.cuh"
 
-#include"flush.cu"
 #include "coalesced.cu"
 #include"coalesced_shared.cu"
 #include"coalesced_independent.cu"
 #include"coalesced_shared_copy.cu"
+#include"coalesced_shared_faster.cu"
+//#include"coalesced_shared_copy_rec.cu"
 int main(int argc, char **argv) {
   int return_code = EXIT_SUCCESS;
 
@@ -85,7 +86,7 @@ int main(int argc, char **argv) {
   
 
   for (int source_i = 0; source_i < args.runs; source_i++) {
-    uint32_t source = sources[source_i];
+    uint32_t source = 0;//sources[source_i];
     printf("\n[OUT] -- BFS iteration #%u, source=%u --\n", source_i, source);
 
     // Run the BFS baseline
@@ -95,7 +96,7 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_NVTX
     nvtxRangePushA("Complete BFS");
 #endif
-    gpu_bfs_coalesced_shared_copy(graph.num_vertices, graph.num_edges, d_row_ptr_pinned,
+    gpu_bfs_coalesced_shared_faster(graph.num_vertices, graph.num_edges, d_row_ptr_pinned,
                      d_col_idx_pinned, source, distances_pinned);
     CHECK_CUDA(cudaMemcpy(distances, distances_pinned,
                           graph.num_vertices * sizeof(int),

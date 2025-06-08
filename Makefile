@@ -1,5 +1,5 @@
 CUDAC=nvcc
-CUDA_FLAGS=-O3 -Iinclude -arch=sm_80
+CUDA_FLAGS=-O3 -Iinclude -arch=sm_80 -rdc=true
 C_FLAGS=-Wall -Wextra # -std=c99
 PROF_FLAGS=-lineinfo
 
@@ -17,7 +17,7 @@ all: $(BIN_DIR)/bfs $(BIN_DIR)/bfs_profiling
 
 $(BIN_DIR)/bfs: $(SRCS)
 	@ mkdir -p $(BIN_DIR)
-	$(CUDAC) $(CUDA_FLAGS) -I$(DIST_MMIO_INCLUDE) --compiler-options "$(C_FLAGS)" -o $@ $^ $(DIST_MMIO_SRCS)
+	$(CUDAC) $(CUDA_FLAGS) -I$(DIST_MMIO_INCLUDE) --compiler-options "$(C_FLAGS)" -lcudadevrt -o $@ $^ $(DIST_MMIO_SRCS)
 
 $(BIN_DIR)/bfs_dbg: $(SRCS)
 	@ mkdir -p $(BIN_DIR)
