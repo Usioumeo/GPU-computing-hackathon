@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_NVTX
     nvtxRangePushA("Complete BFS");
 #endif
-    gpu_bfs_coalesced_shared_faster(graph.num_vertices, graph.num_edges, d_row_ptr_pinned,
+    gpu_bfs_coalesced_shared_copy(graph.num_vertices, graph.num_edges, d_row_ptr_pinned,
                      d_col_idx_pinned, source, distances_pinned);
     CHECK_CUDA(cudaMemcpy(distances, distances_pinned,
                           graph.num_vertices * sizeof(int),

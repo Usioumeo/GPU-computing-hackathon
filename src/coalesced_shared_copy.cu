@@ -37,14 +37,21 @@ __global__ void bfs_kernel_coalesced_shared_copy(
   }
   __syncthreads();
     uint32_t flush_size = min(shared_buffer_size, SHARED_BUFFER_SIZE);
-    if(threadIdx.y == 0 && threadIdx.x == 0) {
+    if (threadIdx.y == 0 && threadIdx.x == 0) {
       start_index = atomicAdd(next_frontier_size, flush_size);
     }
     __syncthreads();
 
-   for (uint32_t i = threadIdx.y+blockDim.y*threadIdx.x; i < flush_size; i+=blockDim.y) {
-      //uint32_t index = atomicAdd(next_frontier_size, 1);
-      next_frontier[start_index+i] = shared_buffer[i];
+    if(threadIdx.x == 0) {
+      // Copy the shared buffer to next_frontier
+      for (uint32_t i = threadIdx.y; i < flush_size; i+= blockDim.y) {
+        next_frontier[start_index + i] = shared_buffer[i];
+      }
+    }
+
+    // Reset the shared buffer for the next batch
+    if (threadIdx.x == 0 && threadIdx.y == 0) {
+      shared_buffer_size = 0;
     }
   }
 

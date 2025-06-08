@@ -1,13 +1,12 @@
 #include "../include/utils.cuh"
 #include <sys/types.h>
-// Kernel: Process each node in the frontier and add unvisited neighbors to
-// next_frontier
+// how big should the shared buffer be? it depends on the available storage
 #define SHARED_BUFFER_SIZE 10000 // Adjusted for shared memory size
 __global__ void bfs_kernel_coalesced_shared_faster(
     const uint32_t *__restrict__ row_offsets,
     const uint32_t *__restrict__ col_indices, int *__restrict__ distances,
     const uint32_t *__restrict__ frontier, uint32_t *__restrict__ next_frontier,
-    uint32_t *frontier_size, uint32_t current_level,
+    uint32_t *frontier_size, uint32_t *current_level,
     uint32_t *__restrict__ next_frontier_size) {
   __shared__ uint32_t shared_buffer[SHARED_BUFFER_SIZE];
   __shared__ uint32_t shared_buffer_size;
@@ -17,16 +16,15 @@ __global__ void bfs_kernel_coalesced_shared_faster(
     shared_buffer_size =
         0; // Reset shared buffer size at the start of each block
   }
-  __syncthreads();
   while (tid < *frontier_size) {
-
+    __syncthreads();
     uint32_t node = frontier[tid];
     uint32_t row_start = row_offsets[node];
     uint32_t row_end = row_offsets[node + 1];
 
     for (uint32_t i = row_start + threadIdx.y; i < row_end; i += blockDim.y) {
       uint32_t neighbor = col_indices[i];
-      if (atomicCAS(&distances[neighbor], -1, current_level + 1) == -1) {
+      if (atomicCAS(&distances[neighbor], -1, *current_level + 1) == -1) {
         uint32_t index_shared = atomicAdd(&shared_buffer_size, 1);
         if (index_shared < SHARED_BUFFER_SIZE) {
           shared_buffer[index_shared] = neighbor;
@@ -44,20 +42,27 @@ __global__ void bfs_kernel_coalesced_shared_faster(
     }
     __syncthreads();
 
-    for (uint32_t i = threadIdx.y + blockDim.y * threadIdx.x; i < flush_size;
-         i += blockDim.y) {
-      next_frontier[start_index + i] = shared_buffer[i];
+    if(threadIdx.x == 0) {
+      // Copy the shared buffer to next_frontier
+      for (uint32_t i = threadIdx.y; i < flush_size; i+= blockDim.y) {
+        next_frontier[start_index + i] = shared_buffer[i];
+      }
     }
-    __syncthreads();
 
     // Reset the shared buffer for the next batch
     if (threadIdx.x == 0 && threadIdx.y == 0) {
       shared_buffer_size = 0;
     }
-    __syncthreads();
 
     tid += blockDim.x * gridDim.x;
   }
+}
+
+// dummy thread to reset the pointer, and increment the level, it is done in another launch to be sure the memory get's correctly synchronized
+__global__ void reset_pointer(uint32_t *d_frontier_size,
+                              uint32_t *current_level) {
+  *current_level = *current_level + 1;
+  *d_frontier_size = 0; // Reset the frontier size
 }
 
 void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
@@ -67,7 +72,8 @@ void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
   cudaMemPool_t pool;
   cudaDeviceGetDefaultMemPool(&pool, 0);
   cudaDeviceSetMemPool(0, pool);
-  // Warm up the async allocator (do this before your timed section)
+  // Warm up the async allocator (I don't think it should be included in the
+  // timing)
   void *dummy_ptr = nullptr;
   cudaStream_t dummy_stream;
   cudaStreamCreate(&dummy_stream);
@@ -89,12 +95,7 @@ void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
   // Allocate and copy graph to device
   uint32_t *d_row_offsets;
   uint32_t *d_col_indices;
-  /*CHECK_CUDA(cudaMalloc(&d_row_offsets, (N + 1) * sizeof(uint32_t)));
-  CHECK_CUDA(cudaMalloc(&d_col_indices, M * sizeof(uint32_t)));
-  CHECK_CUDA(cudaMemcpy(d_row_offsets, h_rowptr, (N + 1) * sizeof(uint32_t),
-                        cudaMemcpyHostToDevice));
-  CHECK_CUDA(cudaMemcpy(d_col_indices, h_colidx, M * sizeof(uint32_t),
-                        cudaMemcpyHostToDevice));*/
+
   CHECK_CUDA(
       cudaMallocAsync(&d_row_offsets, (N + 1) * sizeof(uint32_t), stream_row));
   CHECK_CUDA(cudaMemcpyAsync(d_row_offsets, h_rowptr,
@@ -110,11 +111,8 @@ void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
   uint32_t *d_frontier;
   uint32_t *d_frontier_size;
   uint32_t *d_next_frontier;
-  uint32_t *d_next_frontier_size;
-  /*CHECK_CUDA(cudaMalloc(&d_distances, N * sizeof(int)));
-  CHECK_CUDA(cudaMalloc(&d_frontier, N * sizeof(uint32_t)));
-  CHECK_CUDA(cudaMalloc(&d_next_frontier, N * sizeof(uint32_t)));
-  CHECK_CUDA(cudaMalloc(&d_next_frontier_size, sizeof(uint32_t)));*/
+  uint32_t *d_next_frontier_size, *level;
+
   CHECK_CUDA(cudaMallocAsync(&d_distances, N * sizeof(int), stream_distances));
   CHECK_CUDA(
       cudaMallocAsync(&d_frontier, N * sizeof(uint32_t), stream_frontier));
@@ -124,14 +122,9 @@ void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
                              stream_next_frontier));
   CHECK_CUDA(cudaMallocAsync(&d_next_frontier_size, sizeof(uint32_t),
                              stream_next_frontier));
+  CHECK_CUDA(cudaMallocAsync(&level, sizeof(uint32_t), stream_next_frontier));
+  CHECK_CUDA(cudaMemsetAsync(level, 0, sizeof(uint32_t), stream_next_frontier));
 
-  /*std::vector<uint32_t> h_frontier(1);
-  h_frontier[0] = source;*/
-
-  /*CHECK_CUDA(cudaMemcpy(d_frontier, &source, sizeof(uint32_t),
-                        cudaMemcpyHostToDevice));
-  // Initialize all distances to -1 (unvisited), and source distance to 0
-  CHECK_CUDA(cudaMemset(d_distances, -1, N * sizeof(int)));
   CHECK_CUDA(cudaMemset(d_distances + source, 0, sizeof(int))); // set to 0*/
   CHECK_CUDA(cudaMemcpyAsync(d_frontier, &source, sizeof(uint32_t),
                              cudaMemcpyHostToDevice, stream_frontier));
@@ -163,15 +156,19 @@ void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
   CUDA_TIMER_PRINT(H2D_copy)
 #endif
   tot_time += CUDA_TIMER_ELAPSED(H2D_copy);
+  // printf for debugging purposes, out of timing
   printf("after init %f\n", tot_time);
   CUDA_TIMER_DESTROY(H2D_copy)
 
-  uint32_t level = 0;
   uint32_t host_frontier_size = 1;
   // Main BFS loop
   CPU_TIMER_INIT(BASELINE_BFS)
   dim3 block_dim(24, 32);
   dim3 grid_dim(568);
+  cudaGraph_t graph;
+  cudaGraphExec_t graphExec;
+  bool graphCreated = false;
+  // main BFS loop
   while (host_frontier_size > 0) {
 
 #ifdef DEBUG_PRINTS
@@ -182,77 +179,33 @@ void gpu_bfs_coalesced_shared_faster(const uint32_t N, const uint32_t M,
     // Mark start of level in NVTX
     nvtxRangePushA(("BFS Level " + std::to_string(level)).c_str());
 #endif
-    // unrolling
-    for (int i = 0; i < 4; i++) {
-      bfs_kernel_coalesced_shared_faster<<<grid_dim, block_dim, 0,
-                                           stream_kernel>>>(
-          d_row_offsets, d_col_indices, d_distances, d_frontier,
-          d_next_frontier, d_frontier_size, level++, d_next_frontier_size);
-      cudaMemsetAsync(d_frontier_size, 0, sizeof(uint32_t), stream_kernel);
-      bfs_kernel_coalesced_shared_faster<<<grid_dim, block_dim, 0,
-                                           stream_kernel>>>(
-          d_row_offsets, d_col_indices, d_distances, d_next_frontier,
-          d_frontier, d_next_frontier_size, level++, d_frontier_size);
-      cudaMemsetAsync(d_next_frontier_size, 0, sizeof(uint32_t), stream_kernel);
+    {
+      if (!graphCreated) {
+        cudaStreamBeginCapture(stream_kernel, cudaStreamCaptureModeGlobal);
+        for (int i = 0; i < 12; ++i) {
+          bfs_kernel_coalesced_shared_faster<<<grid_dim, block_dim, 0,
+                                               stream_kernel>>>(
+              d_row_offsets, d_col_indices, d_distances, d_frontier,
+              d_next_frontier, d_frontier_size, level, d_next_frontier_size);
+          reset_pointer<<<1, 1, 0, stream_kernel>>>(d_frontier_size, level);
+          bfs_kernel_coalesced_shared_faster<<<grid_dim, block_dim, 0,
+                                               stream_kernel>>>(
+              d_row_offsets, d_col_indices, d_distances, d_next_frontier,
+              d_frontier, d_next_frontier_size, level, d_frontier_size);
+          reset_pointer<<<1, 1, 0, stream_kernel>>>(d_next_frontier_size,
+                                                    level);
+        }
+        cudaMemcpyAsync(&host_frontier_size, d_frontier_size, sizeof(uint32_t),
+                        cudaMemcpyDeviceToHost, stream_kernel);
+
+        cudaStreamEndCapture(stream_kernel, &graph);
+        cudaGraphInstantiate(&graphExec, graph, NULL, NULL, 0);
+        graphCreated = true;
+      }
+
+      cudaGraphLaunch(graphExec, stream_kernel);
+      cudaStreamSynchronize(stream_kernel);
     }
-    CHECK_CUDA(cudaStreamSynchronize(stream_kernel));
-    cudaMemcpy(&host_frontier_size, d_frontier_size, sizeof(uint32_t),
-               cudaMemcpyDeviceToHost);
-    /*// Record event when kernel is done
-cudaEventRecord(kernel_done, stream_kernel);
-
-cudaMemsetAsync(d_frontier_size, 0, sizeof(uint32_t), stream_kernel);
-
-
-// Make memcpy stream wait for kernel to finish
-cudaStreamWaitEvent(stream_memcpy, kernel_done, 0);
-
-bfs_kernel_coalesced_shared_faster<<<grid_dim, block_dim, 0,
-                                     stream_kernel>>>(
-    d_row_offsets, d_col_indices, d_distances, d_next_frontier, d_frontier,
-    d_next_frontier_size, level++, d_frontier_size);
-cudaMemsetAsync(d_next_frontier_size, 0, sizeof(uint32_t),
-                         stream_kernel);
-
-// Async copy on stream_memcpy (will start only after kernel_done)
-cudaMemcpyAsync(&host_frontier_size, d_next_frontier_size, sizeof(uint32_t),
-                cudaMemcpyDeviceToHost, stream_memcpy);
-// Wait for memcpy to finish before host decision
-cudaStreamSynchronize(stream_memcpy);
-cudaDeviceSynchronize();
-printf("host_frontier_size %u\n", host_frontier_size);
-#ifdef ENABLE_NVTX
-// End NVTX range for level
-nvtxRangePop();
-#endif*/
-    /*// Reset counter for next frontier
-    CHECK_CUDA(cudaMemset(d_next_frontier_size, 0, sizeof(uint32_t)));
-
-    CHECK_CUDA(cudaMemcpy(&host_frontier_size, d_frontier_size,
-                          sizeof(uint32_t), cudaMemcpyDeviceToHost));
-
-    // CUDA_TIMER_INIT(BFS_kernel)
-    dim3 block_dim(24, 32);
-    dim3 grid_dim(576);
-    bfs_kernel_coalesced_shared_faster<<<grid_dim, block_dim>>>(
-        d_row_offsets, d_col_indices, d_distances, d_frontier, d_next_frontier,
-        d_frontier_size, level, d_next_frontier_size);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    // CUDA_TIMER_STOP(BFS_kernel)
-    // #ifdef DEBUG_PRINTS
-    //   CUDA_TIMER_PRINT(BFS_kernel)
-    // #endif
-    // CUDA_TIMER_DESTROY(BFS_kernel)
-
-    // exit(0);
-    //  Copy size of next frontier to host
-    CHECK_CUDA(cudaMemcpy(&host_frontier_size, d_next_frontier_size,
-                          sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    // Swap frontier pointers
-    std::swap(d_frontier, d_next_frontier);
-    std::swap(d_frontier_size, d_next_frontier_size);
-    level++;
-    ;*/
   }
   cudaDeviceSynchronize();
   CPU_TIMER_STOP(BASELINE_BFS)
@@ -260,7 +213,7 @@ nvtxRangePop();
   CPU_TIMER_PRINT(BASELINE_BFS)
 #endif
   tot_time += CPU_TIMER_ELAPSED(BASELINE_BFS);
-  printf("after coalesced %f\n", tot_time);
+  printf("after execution %f\n", tot_time);
   CUDA_TIMER_INIT(D2H_copy)
   CHECK_CUDA(cudaMemcpy(h_distances, d_distances, N * sizeof(int),
                         cudaMemcpyDeviceToHost));
@@ -274,10 +227,13 @@ nvtxRangePop();
   printf("\n[OUT] Total BFS time: %f ms\n" RESET, tot_time);
 
   // Free device memory
+  //should memory be included in the timing don't think so
   cudaFree(d_row_offsets);
   cudaFree(d_col_indices);
   cudaFree(d_distances);
   cudaFree(d_frontier);
   cudaFree(d_next_frontier);
   cudaFree(d_next_frontier_size);
+  cudaFree(d_frontier_size);
+  cudaFree(level);
 }

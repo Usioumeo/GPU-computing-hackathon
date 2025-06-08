@@ -12,9 +12,9 @@ __global__ void bfs_kernel_rec(const uint32_t *row_offsets,
                                uint32_t *next_frontier,
                                uint32_t next_frontier_size,
                                uint32_t *next_levels, uint32_t *counter) {
-  __shared__ uint32_t frontier[FRONTIER_SIZE];
-  __shared__ uint32_t levels[FRONTIER_SIZE];
-  __shared__ uint32_t frontier_size;
+  uint32_t frontier[FRONTIER_SIZE];
+  uint32_t levels[FRONTIER_SIZE];
+  uint32_t frontier_size;
   // Copy next_frontier to frontier in parallel
   if (threadIdx.x == 0 && threadIdx.y == 0) {
     frontier_size = next_frontier_size;
@@ -41,6 +41,13 @@ __global__ void bfs_kernel_rec(const uint32_t *row_offsets,
   for (uint32_t i = row_start + threadIdx.y; i < row_end; i += blockDim.y) {
     uint32_t neighbor = col_indices[i];
     if (atomicMin(&distances[neighbor], level + 1) > level + 1) {
+      // If the neighbor was unvisited, add it to the next frontier
+      uint32_t index = atomicAdd(&next_frontier_size, 1);
+      if (index < FRONTIER_SIZE) {
+        next_frontier[index] = neighbor;
+        next_levels[index] = level + 1;
+        written_out++;
+      }
     }
   }
 }
