@@ -46,11 +46,17 @@ __global__ void bfs_kernel_coalesced_shared_faster(
 
     for (uint32_t i = threadIdx.y + blockDim.y * threadIdx.x; i < flush_size;
          i += blockDim.y) {
-      // uint32_t index = atomicAdd(next_frontier_size, 1);
       next_frontier[start_index + i] = shared_buffer[i];
     }
     __syncthreads();
-    tid += blockDim.x * gridDim.x; // Move to the next node in the frontier
+
+    // Reset the shared buffer for the next batch
+    if (threadIdx.x == 0 && threadIdx.y == 0) {
+      shared_buffer_size = 0;
+    }
+    __syncthreads();
+
+    tid += blockDim.x * gridDim.x;
   }
 }
 
