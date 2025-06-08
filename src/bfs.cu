@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
   
 
   for (int source_i = 0; source_i < args.runs; source_i++) {
-    uint32_t source = 0;//sources[source_i];
+    uint32_t source = sources[source_i];
     printf("\n[OUT] -- BFS iteration #%u, source=%u --\n", source_i, source);
 
     // Run the BFS baseline
